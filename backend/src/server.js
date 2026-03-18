@@ -3,33 +3,76 @@
 // ─── Load environment variables FIRST (before any other imports) ──────────────
 require('dotenv').config();
 
-const express  = require('express');
-const cors     = require('cors');
-const helmet   = require('helmet');
-const morgan   = require('morgan');
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const http = require('http');
+const { Server } = require('socket.io');
 
-const connectDB            = require('./config/database');
-const config               = require('./config/config');
-const logger               = require('./utils/logger');
+const connectDB = require('./config/database');
+const config = require('./config/config');
+const logger = require('./utils/logger');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 // ─── Route imports ────────────────────────────────────────────────────────────
-const authRoutes         = require('./routes/authRoutes');
-const userRoutes         = require('./routes/userRoutes');
-const projectRoutes      = require('./routes/projectRoutes');
-const taskRoutes         = require('./routes/taskRoutes');
+const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const projectRoutes = require('./routes/projectRoutes');
+const taskRoutes = require('./routes/taskRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
-const auditRoutes        = require('./routes/auditRoutes');
+const auditRoutes = require('./routes/auditRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+const timesheetRoutes = require('./routes/timesheetRoutes');
+const activityRoutes = require('./routes/activityRoutes');
+const discussionRoutes = require('./routes/discussionRoutes');
+const reportsRoutes = require('./routes/reportsRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const attendanceRoutes = require("./routes/attendance");
 
-// ─── App Initialization ───────────────────────────────────────────────────────
-const app  = express();
+// ─── Admin user controller (getTeam endpoint) ────────────────────────────────
+const { getTeam } = require('./controllers/adminController');
+const { authenticate } = require('./middleware/authenticate');
+const { organizationIsolation } = require('./middleware/organizationIsolation');
+
+// ─── App & HTTP server ────────────────────────────────────────────────────────
+const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
+
+// ─── Socket.io setup ─────────────────────────────────────────────────────────
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
+});
+
+io.on('connection', (socket) => {
+  logger.info(`🔌 Socket connected: ${socket.id}`);
+
+  socket.on('join:org', (orgId) => {
+    socket.join(`org:${orgId}`);
+    logger.info(`Socket ${socket.id} joined org:${orgId}`);
+  });
+
+  socket.on('disconnect', () => {
+    logger.info(`🔌 Socket disconnected: ${socket.id}`);
+  });
+});
+
+// Attach io to req so controllers can emit events
+app.use((req, _res, next) => {
+  req.io = io;
+  next();
+});
 
 // ─── Security Middleware ──────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors(config.cors));
-app.set('trust proxy', 1); // required when behind a reverse proxy (render, nginx, etc.)
+app.set('trust proxy', 1);
 
 // ─── Global Rate Limiter ──────────────────────────────────────────────────────
 const globalLimiter = rateLimit(config.rateLimit);
@@ -52,12 +95,22 @@ app.get('/api/health', (req, res) => {
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
-app.use('/api/auth',          authRoutes);
-app.use('/api/users',         userRoutes);
-app.use('/api/projects',      projectRoutes);
-app.use('/api/tasks',         taskRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/tasks', taskRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/audit',         auditRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/timesheets', timesheetRoutes);
+app.use('/api/activity', activityRoutes);
+app.use('/api/discussions', discussionRoutes);
+app.use('/api/reports', reportsRoutes);
+app.use('/api/admin', adminRoutes);
+app.use("/api/attendance", attendanceRoutes);
+
+// Team endpoint (under /api/users)
+app.get('/api/users/team', authenticate, organizationIsolation, getTeam);
 
 // ─── 404 Handler (must be AFTER all routes) ───────────────────────────────────
 app.use(notFound);
@@ -70,9 +123,10 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       logger.info(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
       logger.info(`🔗 Health check: http://localhost:${PORT}/api/health`);
+      logger.info(`🔌 Socket.io ready`);
     });
   } catch (error) {
     logger.error(`❌ Failed to start server: ${error.message}`);
@@ -87,7 +141,7 @@ const gracefulShutdown = (signal) => {
 };
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('unhandledRejection', (reason, promise) => {
   logger.error(`Unhandled Rejection at: ${promise} — reason: ${reason}`);
@@ -101,4 +155,4 @@ process.on('uncaughtException', (err) => {
 
 startServer();
 
-module.exports = app; // export for testing
+module.exports = app;

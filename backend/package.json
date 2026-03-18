@@ -9,7 +9,12 @@
     "lint": "eslint src/",
     "test": "jest --coverage"
   },
-  "keywords": ["project-management", "multi-tenant", "saas", "governance"],
+  "keywords": [
+    "project-management",
+    "multi-tenant",
+    "saas",
+    "governance"
+  ],
   "author": "PM-Lan Team",
   "license": "MIT",
   "dependencies": {
@@ -17,21 +22,22 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
+    "express-rate-limit": "^7.2.0",
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.2.3",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.8.3",
     "uuid": "^9.0.1",
-    "winston": "^3.12.0",
-    "express-rate-limit": "^7.2.0"
+    "winston": "^3.12.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0",
+    "eslint": "^8.57.0",
     "jest": "^29.7.0",
-    "supertest": "^6.3.4",
-    "eslint": "^8.57.0"
+    "nodemon": "^3.1.0",
+    "supertest": "^6.3.4"
   },
   "engines": {
     "node": ">=18.0.0"

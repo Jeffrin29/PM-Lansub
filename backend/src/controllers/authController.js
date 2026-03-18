@@ -13,6 +13,7 @@ const buildTokens = (user) => {
     organizationId: user.organizationId.toString(),
     roleId: user.roleId?.toString() || user.roleId,
   };
+
   return {
     accessToken: signAccessToken(payload),
     refreshToken: signRefreshToken(payload),

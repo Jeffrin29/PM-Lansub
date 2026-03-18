@@ -17,8 +17,9 @@ router.patch('/read-all', notificationController.markAllAsRead);
 // ─── DELETE /api/notifications/read — delete all read notifications ───────────
 router.delete('/read', notificationController.deleteAllRead);
 
-// ─── PATCH /api/notifications/:id/read — mark single notification as read ────
+// ─── PUT/PATCH /api/notifications/:id/read — mark single notification as read ────
 router.patch('/:id/read', notificationController.markAsRead);
+router.put('/:id/read',   notificationController.markAsRead);
 
 // ─── DELETE /api/notifications/:id — delete single notification ──────────────
 router.delete('/:id', notificationController.deleteNotification);

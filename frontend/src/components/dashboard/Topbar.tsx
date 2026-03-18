@@ -1,5 +1,6 @@
 import { FaSearch, FaBell, FaUserCircle } from "react-icons/fa";
 import ThemeToggle from "./ThemeToggle";
+import ClockButton from "./ClockButton";
 
 export default function Topbar() {
   return (
@@ -27,6 +28,8 @@ export default function Topbar() {
         <FaBell className="cursor-pointer" />
 
         <FaUserCircle className="text-xl cursor-pointer" />
+
+        <ClockButton />
 
       </div>
 

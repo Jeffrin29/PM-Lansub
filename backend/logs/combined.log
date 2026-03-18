@@ -1,0 +1,6 @@
+[2026-03-13 13:09:03] [32minfo[39m: [32m✅ MongoDB Connected: localhost[39m
+[2026-03-13 13:09:03] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-03-13 13:09:03] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-03-13 13:09:03] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-03-13 13:15:43] [32minfo[39m: [32m[39m
+[32m⚠️  SIGINT received. Shutting down gracefully...[39m

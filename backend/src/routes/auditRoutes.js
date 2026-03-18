@@ -18,14 +18,14 @@ router.get('/', async (req, res, next) => {
 
     const filter = { organizationId: req.user.organizationId };
 
-    if (action)       filter.action     = action.toUpperCase();
-    if (entityType)   filter.entityType = entityType;
-    if (userId)       filter.userId     = userId;
-    if (status)       filter.status     = status;
+    if (action) filter.action = action.toUpperCase();
+    if (entityType) filter.entityType = entityType;
+    if (userId) filter.userId = userId;
+    if (status) filter.status = status;
     if (from || to) {
       filter.createdAt = {};
       if (from) filter.createdAt.$gte = new Date(from);
-      if (to)   filter.createdAt.$lte = new Date(to);
+      if (to) filter.createdAt.$lte = new Date(to);
     }
 
     const [logs, total] = await Promise.all([

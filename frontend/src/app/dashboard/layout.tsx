@@ -1,5 +1,6 @@
 import Sidebar from "../../components/dashboard/Sidebar";
 import Topbar from "../../components/dashboard/Topbar";
+import CommandPalette from "../../components/dashboard/CommandPalette";
 
 export default function DashboardLayout({
   children,
@@ -32,6 +33,9 @@ export default function DashboardLayout({
         </main>
 
       </div>
+
+      {/* GLOBAL COMMAND PALETTE (Ctrl+K) */}
+      <CommandPalette />
     </div>
   );
 }

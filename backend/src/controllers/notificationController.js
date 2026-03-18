@@ -29,9 +29,14 @@ exports.getNotifications = async (req, res, next) => {
       readStatus: false,
     });
 
+    const formattedNotifications = notifications.map(n => ({
+      ...n,
+      read: n.readStatus // For frontend compatibility
+    }));
+
     return successResponse(
       res,
-      { ...paginatedResponse(notifications, total, page, limit), unreadCount },
+      { ...paginatedResponse(formattedNotifications, total, page, limit), unreadCount },
       'Notifications fetched.'
     );
   } catch (err) {
@@ -46,9 +51,14 @@ exports.markAsRead = async (req, res, next) => {
       { _id: req.params.id, userId: req.user.userId, organizationId: req.user.organizationId },
       { readStatus: true, readAt: new Date() },
       { new: true }
-    );
+    ).lean();
+
     if (!notification) return errorResponse(res, 'Notification not found.', 404);
-    return successResponse(res, notification, 'Marked as read.');
+
+    return successResponse(res, {
+      ...notification,
+      read: notification.readStatus
+    }, 'Marked as read.');
   } catch (err) {
     next(err);
   }
