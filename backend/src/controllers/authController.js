@@ -65,6 +65,19 @@ exports.register = async (req, res, next) => {
       emailVerified: false,
     });
 
+    const HrEmployee = require("../models/HrEmployee");
+    // After creating user
+
+    await HrEmployee.create({
+      organizationId: user.organizationId,
+      userId: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role || "Employee",
+      department: "General",
+      status: "active",
+    });
+
     // Update org createdBy
     if (!org.createdBy) {
       org.createdBy = user._id;

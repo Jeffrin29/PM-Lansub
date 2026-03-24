@@ -1,0 +1,6 @@
+[2026-03-20 09:15:26] [31merror[39m: [31m❌ MongoDB Connection Error: querySrv ECONNREFUSED _mongodb._tcp.cluster0.nfljew1.mongodb.net[39m
+[2026-03-20 09:18:37] [31merror[39m: [31m❌ MongoDB Connection Error: querySrv ECONNREFUSED _mongodb._tcp.cluster0.nfljewl.mongodb.net[39m
+[2026-03-20 09:30:24] [31merror[39m: [31m❌ MongoDB Connection Error: querySrv ECONNREFUSED _mongodb._tcp.cluster0.nfljewl.mongodb.net[39m
+[2026-03-20 09:37:58] [31merror[39m: [31m❌ MongoDB Connection Error: querySrv ECONNREFUSED _mongodb._tcp.cluster0.nfljewl.mongodb.net[39m
+[2026-03-20 09:39:03] [31merror[39m: [31m❌ MongoDB Connection Error: querySrv ECONNREFUSED _mongodb._tcp.cluster0.nfljew1.mongodb.net[39m
+[2026-03-23 14:10:41] [31merror[39m: [31m❌ MongoDB Connection Error: querySrv ETIMEOUT _mongodb._tcp.cluster0.nfljew1.mongodb.net[39m

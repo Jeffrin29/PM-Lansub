@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import api from "../../../lib/api";
+import { activityApi } from "../../../lib/api";
 
 interface Activity {
   _id: string;
@@ -23,17 +23,17 @@ function timeAgo(date: string) {
 }
 
 const actionConfig: Record<string, { icon: string; color: string; label: (m: Record<string, string>) => string }> = {
-  "task:created":       { icon: "✅", color: "bg-blue-500",    label: (m) => `Created task "${m.title || ""}"` },
-  "task:updated":       { icon: "📝", color: "bg-violet-500",  label: (m) => `Updated task "${m.title || ""}"` },
-  "task:moved":         { icon: "🔄", color: "bg-amber-500",   label: (m) => `Moved task to ${m.status || ""}` },
-  "task:completed":     { icon: "🎉", color: "bg-emerald-500", label: () => "Completed a task" },
-  "task:assigned":      { icon: "👤", color: "bg-teal-500",    label: (m) => `Assigned task to ${m.assignee || ""}` },
-  "project:created":    { icon: "🚀", color: "bg-indigo-500",  label: (m) => `Created project "${m.title || ""}"` },
-  "project:updated":    { icon: "⚙️", color: "bg-gray-500",   label: () => "Updated a project" },
-  "comment:added":      { icon: "💬", color: "bg-pink-500",    label: () => "Added a comment" },
-  "file:uploaded":      { icon: "📎", color: "bg-orange-500",  label: (m) => `Uploaded ${m.filename || "a file"}` },
-  "timesheet:submitted":{ icon: "⏱", color: "bg-blue-600",    label: () => "Submitted a timesheet" },
-  "discussion:created": { icon: "🗣️", color: "bg-rose-500",   label: (m) => `Started discussion "${m.topic || ""}"` },
+  "task:created":        { icon: "✅", color: "bg-blue-500",    label: (m) => `Created task "${m.title || ""}"` },
+  "task:updated":        { icon: "📝", color: "bg-violet-500",  label: (m) => `Updated task "${m.title || ""}"` },
+  "task:moved":          { icon: "🔄", color: "bg-amber-500",   label: (m) => `Moved task to ${m.status || ""}` },
+  "task:completed":      { icon: "🎉", color: "bg-emerald-500", label: () => "Completed a task" },
+  "task:assigned":       { icon: "👤", color: "bg-teal-500",    label: (m) => `Assigned task to ${m.assignee || ""}` },
+  "project:created":     { icon: "🚀", color: "bg-indigo-500",  label: (m) => `Created project "${m.title || ""}"` },
+  "project:updated":     { icon: "⚙️", color: "bg-gray-500",   label: () => "Updated a project" },
+  "comment:added":       { icon: "💬", color: "bg-pink-500",    label: () => "Added a comment" },
+  "file:uploaded":       { icon: "📎", color: "bg-orange-500",  label: (m) => `Uploaded ${m.filename || "a file"}` },
+  "timesheet:submitted": { icon: "⏱",  color: "bg-blue-600",   label: () => "Submitted a timesheet" },
+  "discussion:created":  { icon: "🗣️", color: "bg-rose-500",   label: (m) => `Started discussion "${m.topic || ""}"` },
 };
 
 function ActivityItem({ item }: { item: Activity }) {
@@ -72,28 +72,20 @@ function ActivityItem({ item }: { item: Activity }) {
   );
 }
 
-const DEMO_ACTIVITIES: Activity[] = [
-  { _id: "1", action: "task:created", entityType: "task", metadata: { title: "Deploy API" }, createdAt: new Date(Date.now() - 5 * 60000).toISOString(), userId: { name: "John Doe", email: "" } },
-  { _id: "2", action: "file:uploaded", entityType: "file", metadata: { filename: "design.figma" }, createdAt: new Date(Date.now() - 22 * 60000).toISOString(), userId: { name: "Maria Smith", email: "" } },
-  { _id: "3", action: "task:moved", entityType: "task", metadata: { status: "In Progress" }, createdAt: new Date(Date.now() - 60 * 60000).toISOString(), userId: { name: "Alex Lee", email: "" } },
-  { _id: "4", action: "comment:added", entityType: "comment", metadata: {}, createdAt: new Date(Date.now() - 3 * 3600000).toISOString(), userId: { name: "Dana R.", email: "" } },
-  { _id: "5", action: "task:completed", entityType: "task", metadata: { title: "API Testing" }, createdAt: new Date(Date.now() - 5 * 3600000).toISOString(), userId: { name: "Emma W.", email: "" } },
-  { _id: "6", action: "project:created", entityType: "project", metadata: { title: "CRM System" }, createdAt: new Date(Date.now() - 24 * 3600000).toISOString(), userId: { name: "John Doe", email: "" } },
-  { _id: "7", action: "timesheet:submitted", entityType: "timesheet", metadata: {}, createdAt: new Date(Date.now() - 27 * 3600000).toISOString(), userId: { name: "Maria Smith", email: "" } },
-  { _id: "8", action: "discussion:created", entityType: "discussion", metadata: { topic: "Sprint Planning" }, createdAt: new Date(Date.now() - 48 * 3600000).toISOString(), userId: { name: "Alex Lee", email: "" } },
-];
-
 export default function ActivityPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [filter, setFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
+  const [filter,     setFilter]     = useState("all");
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await api.get<any>("/activity?limit=30");
-      setActivities(res?.data?.data || []);
-    } catch (_) {
+      const res = await activityApi.getAll();
+      setActivities(res?.data?.data || res?.data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load activities");
       setActivities([]);
     } finally {
       setLoading(false);
@@ -102,9 +94,8 @@ export default function ActivityPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const display = activities.length ? activities : DEMO_ACTIVITIES;
-  const entityTypes = ["all", ...Array.from(new Set(display.map((a) => a.entityType)))];
-  const filtered = filter === "all" ? display : display.filter((a) => a.entityType === filter);
+  const entityTypes = ["all", ...Array.from(new Set(activities.map((a) => a.entityType)))];
+  const filtered    = filter === "all" ? activities : activities.filter((a) => a.entityType === filter);
 
   return (
     <div className="space-y-8 pb-8">
@@ -124,6 +115,14 @@ export default function ActivityPage() {
           Refresh
         </button>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-4 rounded-xl">
+          ⚠️ {error}
+          <button onClick={fetchData} className="ml-3 underline text-xs">Retry</button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -146,11 +145,19 @@ export default function ActivityPage() {
       {/* Timeline */}
       <div className="max-w-2xl">
         {loading ? (
-          <div className="text-center py-16 text-gray-400">Loading…</div>
+          <div className="flex items-center justify-center py-16 text-gray-400 gap-2">
+            <svg className="animate-spin h-6 w-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Loading activities…
+          </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <span className="text-4xl">📋</span>
-            <p className="mt-3 text-sm">No activities yet</p>
+            <p className="mt-3 text-sm">
+              {activities.length === 0 ? "No activities yet" : "No activities match this filter"}
+            </p>
           </div>
         ) : (
           filtered.map((item) => <ActivityItem key={item._id} item={item} />)

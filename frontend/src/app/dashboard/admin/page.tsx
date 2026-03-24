@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import api from "../../../lib/api";
+import { adminApi } from "../../../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface User {
@@ -16,8 +16,8 @@ interface User {
 // ── Status Badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const m: Record<string, string> = {
-    active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    inactive: "bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-400",
+    active:    "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+    inactive:  "bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-400",
     suspended: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
   };
   return (
@@ -29,12 +29,19 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Permissions ───────────────────────────────────────────────────────────────
 const PERMISSIONS = [
-  { key: "view_dashboard", label: "View Dashboard", icon: "📊" },
-  { key: "create_project", label: "Create Project", icon: "📁" },
-  { key: "assign_task", label: "Assign Tasks", icon: "📋" },
-  { key: "manage_users", label: "Manage Users", icon: "👥" },
-  { key: "export_reports", label: "Export Reports", icon: "📄" },
+  { key: "view_dashboard", label: "View Dashboard",  icon: "📊" },
+  { key: "create_project", label: "Create Project",  icon: "📁" },
+  { key: "assign_task",    label: "Assign Tasks",    icon: "📋" },
+  { key: "manage_users",   label: "Manage Users",    icon: "👥" },
+  { key: "export_reports", label: "Export Reports",  icon: "📄" },
 ];
+
+const DEFAULT_ROLE_PERMISSIONS: Record<string, Record<string, boolean>> = {
+  Admin:             { view_dashboard: true,  create_project: true,  assign_task: true,  manage_users: true,  export_reports: true  },
+  "Project Manager": { view_dashboard: true,  create_project: true,  assign_task: true,  manage_users: false, export_reports: true  },
+  Developer:         { view_dashboard: true,  create_project: false, assign_task: false, manage_users: false, export_reports: false },
+  "Client Viewer":   { view_dashboard: true,  create_project: false, assign_task: false, manage_users: false, export_reports: false },
+};
 
 // ── Create User Modal ─────────────────────────────────────────────────────────
 function CreateUserModal({
@@ -44,9 +51,9 @@ function CreateUserModal({
   onClose: () => void;
   onSave: (data: { name: string; email: string; password: string; role: string }) => Promise<void>;
 }) {
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "Developer" });
+  const [form,   setForm]   = useState({ name: "", email: "", password: "", role: "Developer" });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error,  setError]  = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -91,7 +98,9 @@ function CreateUserModal({
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 transition">Cancel</button>
-            <button id="create-user-submit-btn" type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition disabled:opacity-60">{saving ? "Creating…" : "Create User"}</button>
+            <button id="create-user-submit-btn" type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition disabled:opacity-60">
+              {saving ? "Creating…" : "Create User"}
+            </button>
           </div>
         </form>
       </div>
@@ -99,35 +108,24 @@ function CreateUserModal({
   );
 }
 
-// ── Demo Users ────────────────────────────────────────────────────────────────
-const DEMO_USERS: User[] = [
-  { _id: "1", name: "John Doe", email: "john@company.com", status: "active", roleId: { name: "admin", displayName: "Admin" } },
-  { _id: "2", name: "Maria Smith", email: "maria@company.com", status: "active", roleId: { name: "pm", displayName: "Project Manager" } },
-  { _id: "3", name: "Alex Lee", email: "alex@company.com", status: "inactive", roleId: { name: "developer", displayName: "Developer" } },
-  { _id: "4", name: "Anna Brown", email: "anna@company.com", status: "active", roleId: { name: "viewer", displayName: "Client Viewer" } },
-  { _id: "5", name: "Dana R.", email: "dana@company.com", status: "suspended", roleId: { name: "developer", displayName: "Developer" } },
-];
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users,           setUsers]           = useState<User[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<"users" | "permissions" | "organization">("users");
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [rolePermissions, setRolePermissions] = useState<Record<string, Record<string, boolean>>>({
-    Admin: { view_dashboard: true, create_project: true, assign_task: true, manage_users: true, export_reports: true },
-    "Project Manager": { view_dashboard: true, create_project: true, assign_task: true, manage_users: false, export_reports: true },
-    Developer: { view_dashboard: true, create_project: false, assign_task: false, manage_users: false, export_reports: false },
-    "Client Viewer": { view_dashboard: true, create_project: false, assign_task: false, manage_users: false, export_reports: false },
-  });
+  const [activeTab,       setActiveTab]       = useState<"users" | "permissions" | "organization">("users");
+  const [search,          setSearch]          = useState("");
+  const [loading,         setLoading]         = useState(true);
+  const [error,           setError]           = useState<string | null>(null);
+  const [rolePermissions, setRolePermissions] = useState(DEFAULT_ROLE_PERMISSIONS);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await api.get<any>("/admin/users?limit=50");
-      setUsers(res?.data?.data || []);
-    } catch (_) {
+      const res = await adminApi.getUsers();
+      setUsers(res?.data?.data || res?.data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load users");
       setUsers([]);
     } finally {
       setLoading(false);
@@ -137,34 +135,37 @@ export default function AdminPage() {
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   async function handleCreate(data: { name: string; email: string; password: string; role: string }) {
-    await api.post("/admin/users", data);
+    await adminApi.createUser(data);
     await fetchUsers();
   }
 
   async function handleStatusChange(id: string, status: string) {
     try {
-      await api.put(`/admin/users/${id}`, { status });
+      await adminApi.updateUser(id, { status });
       setUsers((prev) => prev.map((u) => (u._id === id ? { ...u, status: status as User["status"] } : u)));
-    } catch (_) {}
+    } catch (err: any) {
+      setError(err.message || "Failed to update user status");
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this user?")) return;
     try {
-      await api.delete(`/admin/users/${id}`);
+      await adminApi.deleteUser(id);
       setUsers((prev) => prev.filter((u) => u._id !== id));
-    } catch (_) {}
+    } catch (err: any) {
+      setError(err.message || "Failed to delete user");
+    }
   }
 
-  const display = users.length ? users : DEMO_USERS;
-  const filteredUsers = display.filter(
+  const filteredUsers = users.filter(
     (u) =>
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const activeCount = display.filter((u) => u.status === "active").length;
-  const inactiveCount = display.filter((u) => u.status !== "active").length;
+  const activeCount   = users.filter((u) => u.status === "active").length;
+  const inactiveCount = users.filter((u) => u.status !== "active").length;
 
   return (
     <div className="space-y-8 pb-8">
@@ -187,13 +188,21 @@ export default function AdminPage() {
         </button>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-4 rounded-xl">
+          ⚠️ {error}
+          <button onClick={fetchUsers} className="ml-3 underline text-xs">Retry</button>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "Total Users", value: display.length, color: "text-violet-600" },
-          { label: "Active Users", value: activeCount, color: "text-emerald-600" },
-          { label: "Inactive / Suspended", value: inactiveCount, color: "text-red-500" },
-          { label: "Roles", value: Object.keys(rolePermissions).length, color: "text-blue-600" },
+          { label: "Total Users",            value: loading ? "—" : users.length,                              color: "text-violet-600" },
+          { label: "Active Users",           value: loading ? "—" : activeCount,                               color: "text-emerald-600" },
+          { label: "Inactive / Suspended",   value: loading ? "—" : inactiveCount,                            color: "text-red-500" },
+          { label: "Roles",                  value: Object.keys(rolePermissions).length,                       color: "text-blue-600" },
         ].map((stat) => (
           <div key={stat.label} className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
             <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">{stat.label}</p>
@@ -244,9 +253,23 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} className="text-center py-12 text-gray-400">Loading…</td></tr>
+                  <tr>
+                    <td colSpan={5} className="text-center py-12 text-gray-400">
+                      <div className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                        </svg>
+                        Loading users…
+                      </div>
+                    </td>
+                  </tr>
                 ) : filteredUsers.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center py-12 text-gray-400">No users found</td></tr>
+                  <tr>
+                    <td colSpan={5} className="text-center py-12 text-gray-400">
+                      {users.length === 0 ? "No users found. Create one to get started." : "No users match your search."}
+                    </td>
+                  </tr>
                 ) : (
                   filteredUsers.map((user) => (
                     <tr key={user._id} className="border-t border-gray-50 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition">
@@ -362,11 +385,11 @@ export default function AdminPage() {
             <div className="space-y-4 text-sm">
               {[
                 { label: "Organization Name", value: "LANSUB Corp" },
-                { label: "Plan", value: "Enterprise" },
-                { label: "Members Limit", value: "Unlimited" },
-                { label: "Storage", value: "500 GB" },
-                { label: "API Access", value: "Enabled" },
-                { label: "SSO", value: "Enabled" },
+                { label: "Plan",              value: "Enterprise" },
+                { label: "Members Limit",     value: "Unlimited" },
+                { label: "Storage",           value: "500 GB" },
+                { label: "API Access",        value: "Enabled" },
+                { label: "SSO",               value: "Enabled" },
               ].map((item) => (
                 <div key={item.label} className="flex justify-between items-center py-2 border-b border-gray-50 dark:border-zinc-800">
                   <span className="text-gray-500 dark:text-gray-400">{item.label}</span>
@@ -376,7 +399,7 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
-            <h3 className="font-semibold mb-4 text-gray-900 dark:text-white">Plan & Billing</h3>
+            <h3 className="font-semibold mb-4 text-gray-900 dark:text-white">Plan &amp; Billing</h3>
             <div className="bg-gradient-to-br from-blue-500 to-violet-600 rounded-2xl p-6 text-white">
               <p className="text-xs font-medium opacity-80 uppercase tracking-wider">Current Plan</p>
               <p className="text-2xl font-bold mt-1">Enterprise</p>

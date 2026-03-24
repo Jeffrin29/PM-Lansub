@@ -262,14 +262,12 @@ export default function TasksGanttView({ tasks }: Props) {
                       style={{ left: geo.left, width: geo.width }}
                       className="absolute top-1/2 -translate-y-1/2 h-6 rounded-full
                         flex items-center px-2 overflow-hidden
-                        shadow-sm cursor-pointer hover:brightness-110 transition-all
-                        ${barColor(task.status)}"
+                        shadow-md cursor-pointer hover:scale-[1.02] transition-all z-20 group/bar"
                     >
-                      {/* Use inline style for the actual colour since dynamic classes can't be built with template literals safely */}
                       <div
-                        className={`absolute inset-0 rounded-full ${barColor(task.status)} opacity-90`}
+                        className={`absolute inset-0 rounded-full ${barColor(task.status)} opacity-90 group-hover/bar:opacity-100 transition-opacity`}
                       />
-                      <span className="relative z-10 text-[9px] font-bold text-white truncate">
+                      <span className="relative z-10 text-[9px] font-black text-white truncate drop-shadow-sm">
                         {task.title}
                       </span>
                     </div>

@@ -14,7 +14,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
-import api from "../../lib/api";
+import { dashboardApi, activityApi } from "../../lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Summary {
@@ -49,6 +49,13 @@ interface WorkloadItem {
   assigned: number;
   completed: number;
   overdue: number;
+}
+
+interface CostItem {
+  label: string;
+  actual: number;
+  planned: number;
+  budget: number;
 }
 
 interface ActivityItem {
@@ -154,6 +161,18 @@ function HealthRow({
   );
 }
 
+// ── Spinner ────────────────────────────────────────────────────────────────────
+function Spinner() {
+  return (
+    <div className="flex items-center justify-center py-8">
+      <svg className="animate-spin h-6 w-6 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+      </svg>
+    </div>
+  );
+}
+
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -161,28 +180,31 @@ export default function Dashboard() {
   const [taskAnalytics, setTaskAnalytics] = useState<TaskAnalytic[]>([]);
   const [projectProgress, setProjectProgress] = useState<ProjectProgress[]>([]);
   const [workload, setWorkload] = useState<WorkloadItem[]>([]);
+  const [costData, setCostData] = useState<CostItem[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
+    setLoading(true);
     try {
-      const [sumRes, healthRes, taRes, ppRes, wlRes, actRes] = await Promise.allSettled([
-        api.get<{ data: Summary }>("/dashboard/summary"),
-        api.get<{ data: Health }>("/dashboard/health"),
-        api.get<{ data: TaskAnalytic[] }>("/dashboard/task-analytics"),
-        api.get<{ data: ProjectProgress[] }>("/dashboard/project-progress"),
-        api.get<{ data: WorkloadItem[] }>("/dashboard/workload"),
-        api.get<{ data: ActivityItem[] }>("/activity/recent?limit=8"),
-      ]);
+      const [sumRes, healthRes, taRes, ppRes, wlRes, costRes, actRes] =
+        await Promise.allSettled([
+          dashboardApi.summary(),
+          dashboardApi.health(),
+          dashboardApi.taskAnalytics(),
+          dashboardApi.projectProgress(),
+          dashboardApi.workload(),
+          dashboardApi.costAnalysis(),
+          activityApi.recent(8),
+        ]);
 
-      if (sumRes.status === "fulfilled") setSummary((sumRes.value as any).data);
-      if (healthRes.status === "fulfilled") setHealth((healthRes.value as any).data);
-      if (taRes.status === "fulfilled") setTaskAnalytics((taRes.value as any).data || []);
-      if (ppRes.status === "fulfilled") setProjectProgress((ppRes.value as any).data || []);
-      if (wlRes.status === "fulfilled") setWorkload((wlRes.value as any).data || []);
-      if (actRes.status === "fulfilled") setActivity((actRes.value as any).data || []);
-    } catch (_) {
-      // Fallback demo data shown below
+      if (sumRes.status === "fulfilled")     setSummary((sumRes.value as any).data || null);
+      if (healthRes.status === "fulfilled")  setHealth((healthRes.value as any).data || null);
+      if (taRes.status === "fulfilled")      setTaskAnalytics((taRes.value as any).data || []);
+      if (ppRes.status === "fulfilled")      setProjectProgress((ppRes.value as any).data || []);
+      if (wlRes.status === "fulfilled")      setWorkload((wlRes.value as any).data || []);
+      if (costRes.status === "fulfilled")    setCostData((costRes.value as any).data || []);
+      if (actRes.status === "fulfilled")     setActivity((actRes.value as any).data || []);
     } finally {
       setLoading(false);
     }
@@ -191,45 +213,6 @@ export default function Dashboard() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
-
-  // Demo data fallbacks
-  const demoSummary: Summary = {
-    totalProjects: 12,
-    activeProjects: 5,
-    completedTasks: 48,
-    overdueTasks: 3,
-    teamUtilization: 78,
-  };
-  const demoHealth: Health = {
-    time: "14% ahead of schedule",
-    tasks: "12 tasks remaining",
-    workload: "0 overdue",
-    progress: "14% complete",
-    cost: "42% under budget",
-  };
-  const demoTA: TaskAnalytic[] = [
-    { name: "Not Started", value: 12, color: "#94a3b8" },
-    { name: "In Progress", value: 18, color: "#3b82f6" },
-    { name: "Completed", value: 48, color: "#10b981" },
-    { name: "Blocked", value: 3, color: "#ef4444" },
-  ];
-  const demoPP: ProjectProgress[] = [
-    { name: "Design", progress: 80 },
-    { name: "Development", progress: 45 },
-    { name: "Testing", progress: 20 },
-    { name: "Deployment", progress: 5 },
-  ];
-  const demoWL: WorkloadItem[] = [
-    { user: "John Doe", assigned: 8, completed: 5, overdue: 1 },
-    { user: "Maria Smith", assigned: 6, completed: 4, overdue: 0 },
-    { user: "Alex Lee", assigned: 4, completed: 2, overdue: 2 },
-  ];
-
-  const s = summary || demoSummary;
-  const h = health || demoHealth;
-  const ta = taskAnalytics.length ? taskAnalytics : demoTA;
-  const pp = projectProgress.length ? projectProgress : demoPP;
-  const wl = workload.length ? workload : demoWL;
 
   return (
     <div className="space-y-8 pb-8">
@@ -261,31 +244,31 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <KPICard
           label="Total Projects"
-          value={loading ? "—" : s.totalProjects}
+          value={loading ? "—" : (summary?.totalProjects ?? "—")}
           gradient="bg-gradient-to-br from-violet-500 to-purple-700"
           icon="📁"
         />
         <KPICard
           label="Active Projects"
-          value={loading ? "—" : s.activeProjects}
+          value={loading ? "—" : (summary?.activeProjects ?? "—")}
           gradient="bg-gradient-to-br from-blue-500 to-blue-700"
           icon="🚀"
         />
         <KPICard
           label="Completed Tasks"
-          value={loading ? "—" : s.completedTasks}
+          value={loading ? "—" : (summary?.completedTasks ?? "—")}
           gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
           icon="✅"
         />
         <KPICard
           label="Overdue Tasks"
-          value={loading ? "—" : s.overdueTasks}
+          value={loading ? "—" : (summary?.overdueTasks ?? "—")}
           gradient="bg-gradient-to-br from-rose-500 to-red-700"
           icon="⚠️"
         />
         <KPICard
           label="Team Utilization"
-          value={loading ? "—" : `${s.teamUtilization}%`}
+          value={loading ? "—" : summary ? `${summary.teamUtilization}%` : "—"}
           gradient="bg-gradient-to-br from-amber-500 to-orange-600"
           icon="👥"
         />
@@ -299,11 +282,19 @@ export default function Dashboard() {
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
             Project Health Panel
           </h3>
-          <HealthRow label="Time" value={h.time} icon="⏱" />
-          <HealthRow label="Tasks" value={h.tasks} icon="📋" />
-          <HealthRow label="Workload" value={h.workload} icon="👤" />
-          <HealthRow label="Progress" value={h.progress} icon="📈" />
-          <HealthRow label="Cost" value={h.cost} icon="💰" />
+          {loading ? (
+            <Spinner />
+          ) : !health ? (
+            <p className="text-sm text-center text-gray-400 py-8">No health data available</p>
+          ) : (
+            <>
+              <HealthRow label="Time"     value={health.time}     icon="⏱" />
+              <HealthRow label="Tasks"    value={health.tasks}    icon="📋" />
+              <HealthRow label="Workload" value={health.workload} icon="👤" />
+              <HealthRow label="Progress" value={health.progress} icon="📈" />
+              <HealthRow label="Cost"     value={health.cost}     icon="💰" />
+            </>
+          )}
         </div>
 
         {/* Task Analytics Donut */}
@@ -312,42 +303,50 @@ export default function Dashboard() {
             <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
             Task Analytics
           </h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie
-                data={ta}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={3}
-                dataKey="value"
-              >
-                {ta.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
+          {loading ? (
+            <Spinner />
+          ) : taskAnalytics.length === 0 ? (
+            <p className="text-sm text-center text-gray-400 py-8">No task data available</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={taskAnalytics}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {taskAnalytics.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "rgba(17,24,39,0.9)",
+                      border: "none",
+                      borderRadius: "8px",
+                      color: "#fff",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-3 justify-center mt-2">
+                {taskAnalytics.map((item) => (
+                  <div key={item.name} className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ background: item.color }}
+                    />
+                    {item.name} ({item.value})
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  background: "rgba(17,24,39,0.9)",
-                  border: "none",
-                  borderRadius: "8px",
-                  color: "#fff",
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-wrap gap-3 justify-center mt-2">
-            {ta.map((item) => (
-              <div key={item.name} className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
-                <span
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ background: item.color }}
-                />
-                {item.name} ({item.value})
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -359,23 +358,29 @@ export default function Dashboard() {
             <span className="w-2 h-2 rounded-full bg-violet-500 inline-block" />
             Project Progress
           </h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={pp} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
-              <Tooltip
-                contentStyle={{
-                  background: "rgba(17,24,39,0.9)",
-                  border: "none",
-                  borderRadius: "8px",
-                  color: "#fff",
-                }}
-                formatter={(value) => [`${value ?? 0}%`, "Progress"]}
-              />
-              <Bar dataKey="progress" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <Spinner />
+          ) : projectProgress.length === 0 ? (
+            <p className="text-sm text-center text-gray-400 py-8">No project progress data available</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={projectProgress} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{
+                    background: "rgba(17,24,39,0.9)",
+                    border: "none",
+                    borderRadius: "8px",
+                    color: "#fff",
+                  }}
+                  formatter={(value) => [`${Number(value ?? 0)}%`, "Progress"]}
+                />
+                <Bar dataKey="progress" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Cost Analysis */}
@@ -384,34 +389,32 @@ export default function Dashboard() {
             <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
             Cost Analysis
           </h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart
-              data={[
-                { label: "Jan", actual: 42000, planned: 50000, budget: 55000 },
-                { label: "Feb", actual: 38000, planned: 48000, budget: 55000 },
-                { label: "Mar", actual: 51000, planned: 52000, budget: 55000 },
-                { label: "Apr", actual: 47000, planned: 54000, budget: 55000 },
-              ]}
-              margin={{ top: 4, right: 4, bottom: 4, left: -20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip
-                contentStyle={{
-                  background: "rgba(17,24,39,0.9)",
-                  border: "none",
-                  borderRadius: "8px",
-                  color: "#fff",
-                }}
-                formatter={(value) => [`$${(Number(value ?? 0) / 1000).toFixed(0)}k`]}
-              />
-              <Legend />
-              <Bar dataKey="actual" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Actual" />
-              <Bar dataKey="planned" fill="#6366f1" radius={[4, 4, 0, 0]} name="Planned" />
-              <Bar dataKey="budget" fill="#10b981" radius={[4, 4, 0, 0]} name="Budget" />
-            </BarChart>
-          </ResponsiveContainer>
+          {loading ? (
+            <Spinner />
+          ) : costData.length === 0 ? (
+            <p className="text-sm text-center text-gray-400 py-8">No cost data available</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={costData} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{
+                    background: "rgba(17,24,39,0.9)",
+                    border: "none",
+                    borderRadius: "8px",
+                    color: "#fff",
+                  }}
+                  formatter={(value) => [`$${(Number(value ?? 0) / 1000).toFixed(0)}k`]}
+                />
+                <Legend />
+                <Bar dataKey="actual"  fill="#f59e0b" radius={[4, 4, 0, 0]} name="Actual" />
+                <Bar dataKey="planned" fill="#6366f1" radius={[4, 4, 0, 0]} name="Planned" />
+                <Bar dataKey="budget"  fill="#10b981" radius={[4, 4, 0, 0]} name="Budget" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
@@ -423,51 +426,57 @@ export default function Dashboard() {
             <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" />
             Workload Distribution
           </h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-zinc-800">
-                  <th className="pb-3 font-semibold">User</th>
-                  <th className="pb-3 font-semibold text-center">Assigned</th>
-                  <th className="pb-3 font-semibold text-center">Completed</th>
-                  <th className="pb-3 font-semibold text-center">Overdue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {wl.map((item, i) => (
-                  <tr
-                    key={i}
-                    className="border-b border-gray-50 dark:border-zinc-800/50 hover:bg-gray-50 dark:hover:bg-zinc-800/30 transition"
-                  >
-                    <td className="py-3 font-medium text-gray-800 dark:text-gray-200">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold">
-                          {item.user.charAt(0).toUpperCase()}
-                        </div>
-                        {item.user}
-                      </div>
-                    </td>
-                    <td className="py-3 text-center text-blue-600 dark:text-blue-400 font-semibold">
-                      {item.assigned}
-                    </td>
-                    <td className="py-3 text-center text-emerald-600 dark:text-emerald-400 font-semibold">
-                      {item.completed}
-                    </td>
-                    <td className="py-3 text-center">
-                      <span
-                        className={`font-semibold ${item.overdue > 0
-                            ? "text-red-500"
-                            : "text-gray-400 dark:text-gray-500"
-                          }`}
-                      >
-                        {item.overdue}
-                      </span>
-                    </td>
+          {loading ? (
+            <Spinner />
+          ) : workload.length === 0 ? (
+            <p className="text-sm text-center text-gray-400 py-8">No workload data available</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-zinc-800">
+                    <th className="pb-3 font-semibold">User</th>
+                    <th className="pb-3 font-semibold text-center">Assigned</th>
+                    <th className="pb-3 font-semibold text-center">Completed</th>
+                    <th className="pb-3 font-semibold text-center">Overdue</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {workload.map((item, i) => (
+                    <tr
+                      key={i}
+                      className="border-b border-gray-50 dark:border-zinc-800/50 hover:bg-gray-50 dark:hover:bg-zinc-800/30 transition"
+                    >
+                      <td className="py-3 font-medium text-gray-800 dark:text-gray-200">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold">
+                            {item.user.charAt(0).toUpperCase()}
+                          </div>
+                          {item.user}
+                        </div>
+                      </td>
+                      <td className="py-3 text-center text-blue-600 dark:text-blue-400 font-semibold">
+                        {item.assigned}
+                      </td>
+                      <td className="py-3 text-center text-emerald-600 dark:text-emerald-400 font-semibold">
+                        {item.completed}
+                      </td>
+                      <td className="py-3 text-center">
+                        <span
+                          className={`font-semibold ${item.overdue > 0
+                              ? "text-red-500"
+                              : "text-gray-400 dark:text-gray-500"
+                            }`}
+                        >
+                          {item.overdue}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Recent Activity Feed */}
@@ -477,31 +486,12 @@ export default function Dashboard() {
             Recent Activity
           </h3>
 
-          {activity.length === 0 ? (
-            <div className="space-y-4">
-              {[
-                { name: "John", action: "Created task", desc: '"Deploy API"', time: "5m ago", color: "from-blue-400 to-blue-600" },
-                { name: "Maria", action: "Uploaded file", desc: "design.figma", time: "22m ago", color: "from-pink-400 to-rose-600" },
-                { name: "Alex", action: "Moved task", desc: "to In Progress", time: "1h ago", color: "from-violet-400 to-purple-600" },
-                { name: "Dana", action: "Added comment", desc: '"Great work!"', time: "3h ago", color: "from-amber-400 to-orange-600" },
-                { name: "Emma", action: "Completed task", desc: '"API Testing"', time: "5h ago", color: "from-emerald-400 to-teal-600" },
-              ].map((item, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div
-                    className={`w-8 h-8 rounded-full bg-gradient-to-br ${item.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}
-                  >
-                    {item.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      <span className="font-medium">{item.name}</span>{" "}
-                      {item.action}{" "}
-                      <span className="font-medium">{item.desc}</span>
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{item.time}</p>
-                  </div>
-                </div>
-              ))}
+          {loading ? (
+            <Spinner />
+          ) : activity.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+              <span className="text-3xl mb-2">📋</span>
+              <p className="text-sm">No recent activity</p>
             </div>
           ) : (
             <div className="space-y-4">

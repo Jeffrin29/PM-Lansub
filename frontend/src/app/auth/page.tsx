@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { authApi, setToken } from "../../lib/api";
 
 export default function AuthPage() {
 
@@ -15,22 +16,28 @@ export default function AuthPage() {
 
   const [error, setError] = useState("");
 
-  function handleLogin() {
+  async function handleLogin() {
+    try {
+      setError("");
 
-    if (email === "admin@lansub.com" && password === "admin123") {
+      const res = await authApi.login(email, password);
 
-      localStorage.setItem("lansub-auth", "true");
+      const token = res?.data?.accessToken;
 
+      if (!token) {
+        throw new Error("No token received");
+      }
+
+      // Save token properly
+      setToken(token);
+
+      // Redirect
       router.push("/dashboard");
 
-    } else {
-
-      setError("Invalid email or password");
-
+    } catch (err: any) {
+      setError(err.message || "Login failed");
     }
-
   }
-
   return (
     <div className="min-h-screen bg-black flex items-center justify-center">
 

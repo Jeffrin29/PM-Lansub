@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import api from "../../../lib/api";
+import { notificationsApi } from "../../../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Notification {
@@ -24,36 +24,30 @@ function timeAgo(date: string) {
 }
 
 const typeConfig: Record<string, { icon: string; color: string }> = {
-  task_assigned: { icon: "📌", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" },
-  deadline: { icon: "⏰", color: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" },
+  task_assigned:   { icon: "📌", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" },
+  deadline:        { icon: "⏰", color: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" },
   project_updated: { icon: "📁", color: "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" },
-  mention: { icon: "@", color: "bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400" },
-  system: { icon: "⚙️", color: "bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400" },
-  assignment: { icon: "📌", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" },
-  completion: { icon: "✅", color: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" },
-  update: { icon: "🔔", color: "bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400" },
+  mention:         { icon: "@",  color: "bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400" },
+  system:          { icon: "⚙️", color: "bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400" },
+  assignment:      { icon: "📌", color: "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" },
+  completion:      { icon: "✅", color: "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" },
+  update:          { icon: "🔔", color: "bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400" },
 };
-
-const DEMO: Notification[] = [
-  { _id: "1", type: "assignment", message: "John assigned you task: API Integration", read: false, createdAt: new Date(Date.now() - 5 * 60000).toISOString(), priority: "high" },
-  { _id: "2", type: "deadline", message: "Deadline approaching for Mobile App UI (in 2 days)", read: false, createdAt: new Date(Date.now() - 60 * 60000).toISOString(), priority: "medium" },
-  { _id: "3", type: "mention", message: "Maria mentioned you in Discussion: API Review", read: true, createdAt: new Date(Date.now() - 3 * 3600000).toISOString(), priority: "medium" },
-  { _id: "4", type: "completion", message: "Maria completed task: Database Setup", read: true, createdAt: new Date(Date.now() - 5 * 3600000).toISOString(), priority: "low" },
-  { _id: "5", type: "project_updated", message: "Project CRM Dashboard has been updated", read: true, createdAt: new Date(Date.now() - 24 * 3600000).toISOString(), priority: "low" },
-  { _id: "6", type: "system", message: "System maintenance scheduled for Sunday at 2 AM", read: false, createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), priority: "medium" },
-];
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [filter, setFilter] = useState<"all" | "unread">("all");
-  const [loading, setLoading] = useState(true);
+  const [filter,        setFilter]        = useState<"all" | "unread">("all");
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await api.get<any>("/notifications?limit=30");
-      setNotifications(res?.data?.data || []);
-    } catch (_) {
+      const res = await notificationsApi.getAll();
+      setNotifications(res?.data?.data || res?.data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load notifications");
       setNotifications([]);
     } finally {
       setLoading(false);
@@ -62,13 +56,12 @@ export default function NotificationsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const display = notifications.length ? notifications : DEMO;
-  const filtered = filter === "unread" ? display.filter((n) => !n.read) : display;
-  const unreadCount = display.filter((n) => !n.read).length;
+  const filtered     = filter === "unread" ? notifications.filter((n) => !n.read) : notifications;
+  const unreadCount  = notifications.filter((n) => !n.read).length;
 
   async function markRead(id: string) {
     try {
-      await api.put(`/notifications/${id}/read`, {});
+      await notificationsApi.markRead(id);
     } catch (_) {}
     setNotifications((prev) =>
       prev.map((n) => (n._id === id ? { ...n, read: true } : n))
@@ -76,18 +69,17 @@ export default function NotificationsPage() {
   }
 
   async function markAllRead() {
-    // Mark all locally, best-effort API
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     try {
-      for (const n of display.filter((n) => !n.read)) {
-        await api.put(`/notifications/${n._id}/read`, {});
+      for (const n of notifications.filter((n) => !n.read)) {
+        await notificationsApi.markRead(n._id);
       }
     } catch (_) {}
   }
 
   async function deleteNotif(id: string) {
     try {
-      await api.delete(`/notifications/${id}`);
+      await notificationsApi.remove(id);
     } catch (_) {}
     setNotifications((prev) => prev.filter((n) => n._id !== id));
   }
@@ -121,6 +113,14 @@ export default function NotificationsPage() {
         </div>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-4 rounded-xl">
+          ⚠️ {error}
+          <button onClick={fetchData} className="ml-3 underline text-xs">Retry</button>
+        </div>
+      )}
+
       {/* Filter tabs */}
       <div className="flex gap-2">
         {(["all", "unread"] as const).map((f) => (
@@ -134,7 +134,8 @@ export default function NotificationsPage() {
                 : "bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800"
             }`}
           >
-            {f === "all" ? "All" : "Unread"} {f === "all" ? `(${display.length})` : `(${unreadCount})`}
+            {f === "all" ? "All" : "Unread"}{" "}
+            {f === "all" ? `(${notifications.length})` : `(${unreadCount})`}
           </button>
         ))}
       </div>
@@ -142,11 +143,19 @@ export default function NotificationsPage() {
       {/* Notifications List */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden divide-y divide-gray-50 dark:divide-zinc-800">
         {loading ? (
-          <div className="text-center py-12 text-gray-400">Loading…</div>
+          <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+            <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Loading notifications…
+          </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <span className="text-4xl block mb-2">🔔</span>
-            <p className="text-sm">No notifications</p>
+            <p className="text-sm">
+              {filter === "unread" ? "No unread notifications" : "No notifications yet"}
+            </p>
           </div>
         ) : (
           filtered.map((notif) => {
@@ -179,7 +188,7 @@ export default function NotificationsPage() {
                     <span className="text-xs text-gray-400 dark:text-gray-500">{timeAgo(notif.createdAt)}</span>
                     {notif.priority && (
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        notif.priority === "high" ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
+                        notif.priority === "high"   ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
                         notif.priority === "medium" ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" :
                         "bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-400"
                       }`}>

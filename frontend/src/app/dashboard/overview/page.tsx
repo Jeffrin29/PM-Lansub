@@ -173,34 +173,7 @@ export default function OverviewPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Demo fallbacks
-  const demoTasks: UrgentTask[] = [
-    { _id: "1", title: "Finish monthly reporting", priority: "urgent" },
-    { _id: "2", title: "Report signing", priority: "high" },
-    { _id: "3", title: "Market overview keynote", priority: "urgent" },
-  ];
-
-  const demoProjects: Project[] = [
-    { _id: "1", projectTitle: "ERP Implementation", completionPercentage: 40, teamMembers: [] },
-    { _id: "2", projectTitle: "Mobile App Launch", completionPercentage: 65, teamMembers: [] },
-    { _id: "3", projectTitle: "Website Redesign", completionPercentage: 20, teamMembers: [] },
-    { _id: "4", projectTitle: "CRM System", completionPercentage: 80, teamMembers: [] },
-  ];
-
-  const demoTeam: TeamMember[] = [
-    { _id: "1", name: "Dana R.", role: "Project Manager", email: "" },
-    { _id: "2", name: "Elon S.", role: "Developer", email: "" },
-    { _id: "3", name: "Nancy W.", role: "Designer", email: "" },
-    { _id: "4", name: "James M.", role: "QA Engineer", email: "" },
-    { _id: "5", name: "Maria K.", role: "Product Owner", email: "" },
-    { _id: "6", name: "Alex L.", role: "DevOps", email: "" },
-  ];
-
-  const displayTasks = urgentTasks.length ? urgentTasks : demoTasks;
-  const displayProjects = projects.length ? projects : demoProjects;
-  const displayTeam = team.length ? team : demoTeam;
-
-  const filtered = displayProjects.filter((p) =>
+  const filtered = projects.filter((p) =>
     p.projectTitle.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -246,7 +219,12 @@ export default function OverviewPage() {
             🔥 Urgent Tasks
           </h3>
           <div className="space-y-3">
-            {displayTasks.map((task) => {
+            {urgentTasks.length === 0 ? (
+              <div className="text-center py-6 text-gray-400">
+                <span className="text-3xl block mb-2">🎉</span>
+                <p className="text-sm">No urgent tasks right now</p>
+              </div>
+            ) : urgentTasks.map((task) => {
               const due = dueDateLabel(task.dueDate);
               return (
                 <div
@@ -274,7 +252,12 @@ export default function OverviewPage() {
             👥 Team Directory
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            {displayTeam.slice(0, 6).map((member) => (
+            {team.length === 0 ? (
+              <div className="col-span-2 text-center py-6 text-gray-400">
+                <span className="text-3xl block mb-2">👥</span>
+                <p className="text-sm">No team members found</p>
+              </div>
+            ) : team.slice(0, 6).map((member) => (
               <div key={member._id} className="flex flex-col items-center text-center p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition">
                 <Avatar name={member.name} size={10} />
                 <p className="text-sm font-medium mt-2 text-gray-800 dark:text-gray-200">
@@ -329,22 +312,9 @@ export default function OverviewPage() {
               💬 Latest Comments
             </h3>
             {comments.length === 0 ? (
-              <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
-                {[
-                  { name: "Maria", text: "We should finalize the API structure today.", topic: "API Design" },
-                  { name: "John", text: "Great job on the design mockups!", topic: "UI Review" },
-                  { name: "Alex", text: "Tests are passing on staging.", topic: "QA Testing" },
-                ].map((c, i) => (
-                  <div key={i} className="flex gap-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl">
-                    <Avatar name={c.name} size={8} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mb-0.5">
-                        {c.name} · {c.topic}
-                      </p>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{c.text}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-center py-6 text-gray-400">
+                <span className="text-3xl block mb-2">💬</span>
+                <p className="text-sm">No recent comments</p>
               </div>
             ) : (
               <div className="space-y-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import api from "../../../lib/api";
+import { timesheetsApi, projectsApi, tasksApi } from "../../../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Timesheet {
@@ -22,7 +22,7 @@ interface Task { _id: string; title: string }
 // ── Status Badge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
+    pending:  "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
     approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
     rejected: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
   };
@@ -35,9 +35,9 @@ function StatusBadge({ status }: { status: string }) {
 
 function BillingBadge({ type }: { type: string }) {
   const styles: Record<string, string> = {
-    billable: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
+    billable:       "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
     "non-billable": "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400",
-    internal: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400",
+    internal:       "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400",
   };
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full ${styles[type] || ""}`}>
@@ -59,26 +59,23 @@ function TimeEntryModal({
   tasks: Task[];
 }) {
   const [form, setForm] = useState({
-    taskId: "",
-    projectId: "",
-    hours: "",
+    taskId:      "",
+    projectId:   "",
+    hours:       "",
     billingType: "billable",
-    notes: "",
-    date: new Date().toISOString().slice(0, 10),
+    notes:       "",
+    date:        new Date().toISOString().slice(0, 10),
   });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError]   = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.projectId) { setError("Project is required"); return; }
+    if (!form.projectId)                          { setError("Project is required"); return; }
     if (!form.hours || parseFloat(form.hours) <= 0) { setError("Enter valid hours"); return; }
     setSaving(true);
     try {
-      await onSave({
-        ...form,
-        hours: parseFloat(form.hours),
-      } as any);
+      await onSave({ ...form, hours: parseFloat(form.hours) } as any);
       onClose();
     } catch (err: any) {
       setError(err.message || "Failed to save");
@@ -107,9 +104,7 @@ function TimeEntryModal({
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Date *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date *</label>
             <input
               type="date"
               value={form.date}
@@ -118,9 +113,7 @@ function TimeEntryModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Project *
-            </label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Project *</label>
             <select
               id="ts-project-select"
               value={form.projectId}
@@ -134,9 +127,7 @@ function TimeEntryModal({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Task
-            </label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Task</label>
             <select
               id="ts-task-select"
               value={form.taskId}
@@ -151,9 +142,7 @@ function TimeEntryModal({
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Hours *
-              </label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hours *</label>
               <input
                 type="number"
                 min="0.1"
@@ -166,9 +155,7 @@ function TimeEntryModal({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Billing Type
-              </label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Billing Type</label>
               <select
                 id="ts-billing-select"
                 value={form.billingType}
@@ -182,9 +169,7 @@ function TimeEntryModal({
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Notes
-            </label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
             <textarea
               rows={3}
               placeholder="What did you work on?"
@@ -219,24 +204,28 @@ function TimeEntryModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function TimesheetsPage() {
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [groupBy, setGroupBy] = useState<"date" | "project" | "user">("date");
+  const [projects,   setProjects]   = useState<Project[]>([]);
+  const [tasks,      setTasks]      = useState<Task[]>([]);
+  const [showModal,  setShowModal]  = useState(false);
+  const [groupBy,    setGroupBy]    = useState<"date" | "project" | "user">("date");
   const [statusFilter, setStatusFilter] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [tsRes, projRes, taskRes] = await Promise.allSettled([
-        api.get<any>(`/timesheets?limit=50`),
-        api.get<any>("/projects?limit=100"),
-        api.get<any>("/tasks?limit=100"),
+        timesheetsApi.getAll(),
+        projectsApi.getAll(),
+        tasksApi.getAll(),
       ]);
-      if (tsRes.status === "fulfilled") setTimesheets(tsRes.value?.data?.data || []);
-      if (projRes.status === "fulfilled") setProjects(projRes.value?.data?.data || []);
-      if (taskRes.status === "fulfilled") setTasks(taskRes.value?.data?.data || []);
+      if (tsRes.status   === "fulfilled") setTimesheets(tsRes.value?.data?.data   || tsRes.value?.data   || []);
+      if (projRes.status === "fulfilled") setProjects(projRes.value?.data?.data   || projRes.value?.data || []);
+      if (taskRes.status === "fulfilled") setTasks(taskRes.value?.data?.data      || taskRes.value?.data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load timesheets");
     } finally {
       setLoading(false);
     }
@@ -245,12 +234,12 @@ export default function TimesheetsPage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   async function handleSave(data: Partial<Timesheet>) {
-    await api.post("/timesheets", data);
+    await timesheetsApi.create(data);
     await fetchData();
   }
 
   async function handleApprove(id: string, status: "approved" | "rejected") {
-    await api.put(`/timesheets/${id}`, { status });
+    await timesheetsApi.update(id, { status });
     setTimesheets((prev) =>
       prev.map((t) => (t._id === id ? { ...t, status } : t))
     );
@@ -258,23 +247,17 @@ export default function TimesheetsPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this timesheet entry?")) return;
-    await api.delete(`/timesheets/${id}`);
+    await timesheetsApi.remove(id);
     setTimesheets((prev) => prev.filter((t) => t._id !== id));
   }
 
-  // Demo data fallback
-  const demoSheets: Timesheet[] = [
-    { _id: "1", date: new Date().toISOString(), userId: { name: "John Doe", email: "" }, taskId: { title: "Deploy API" }, projectId: { projectTitle: "ERP System" }, hours: 3.5, billingType: "billable", status: "pending", notes: "Worked on deployment scripts" },
-    { _id: "2", date: new Date(Date.now() - 86400000).toISOString(), userId: { name: "Maria Smith", email: "" }, taskId: { title: "UI Design" }, projectId: { projectTitle: "Mobile App" }, hours: 6, billingType: "billable", status: "approved", notes: "Completed all design mockups" },
-    { _id: "3", date: new Date(Date.now() - 172800000).toISOString(), userId: { name: "Alex Lee", email: "" }, taskId: undefined, projectId: { projectTitle: "Website Redesign" }, hours: 2, billingType: "internal", status: "rejected", notes: "Internal meeting" },
-  ];
+  const filtered = statusFilter
+    ? timesheets.filter((t) => t.status === statusFilter)
+    : timesheets;
 
-  const displaySheets = timesheets.length ? timesheets : demoSheets;
-  const filtered = statusFilter ? displaySheets.filter((t) => t.status === statusFilter) : displaySheets;
-
-  const totalHours = filtered.reduce((a, t) => a + t.hours, 0);
+  const totalHours    = filtered.reduce((a, t) => a + t.hours, 0);
   const billableHours = filtered.filter((t) => t.billingType === "billable").reduce((a, t) => a + t.hours, 0);
-  const pendingCount = filtered.filter((t) => t.status === "pending").length;
+  const pendingCount  = filtered.filter((t) => t.status === "pending").length;
 
   return (
     <div className="space-y-8 pb-8">
@@ -291,9 +274,7 @@ export default function TimesheetsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Timesheets</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-            Track and manage work hours
-          </p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Track and manage work hours</p>
         </div>
         <button
           id="add-timesheet-btn"
@@ -303,6 +284,13 @@ export default function TimesheetsPage() {
           ＋ Log Time
         </button>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-4 rounded-xl">
+          ⚠️ {error}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
@@ -367,7 +355,13 @@ export default function TimesheetsPage() {
               {loading ? (
                 <tr>
                   <td colSpan={9} className="text-center py-12 text-gray-400">
-                    Loading…
+                    <div className="flex items-center justify-center gap-2">
+                      <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Loading…
+                    </div>
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
@@ -405,15 +399,9 @@ export default function TimesheetsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-5 py-4 font-semibold text-gray-900 dark:text-white">
-                      {ts.hours}h
-                    </td>
-                    <td className="px-5 py-4">
-                      <StatusBadge status={ts.status} />
-                    </td>
-                    <td className="px-5 py-4">
-                      <BillingBadge type={ts.billingType} />
-                    </td>
+                    <td className="px-5 py-4 font-semibold text-gray-900 dark:text-white">{ts.hours}h</td>
+                    <td className="px-5 py-4"><StatusBadge status={ts.status} /></td>
+                    <td className="px-5 py-4"><BillingBadge type={ts.billingType} /></td>
                     <td className="px-5 py-4 text-gray-500 dark:text-gray-400 max-w-[160px] truncate">
                       {ts.notes || "—"}
                     </td>

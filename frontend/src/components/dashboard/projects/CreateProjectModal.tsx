@@ -15,7 +15,7 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 
 const STATUS_OPTIONS  = ["Draft","Active","Review","Completed","Archived"];
-const PRIORITY_OPTIONS = ["Low","Medium","High"];
+const PRIORITY_OPTIONS = ["Low","Medium","High","Critical"];
 const RISK_OPTIONS    = ["Low","Medium","High"];
 
 // ─── Token helper ─────────────────────────────────────────────────────────────
@@ -136,13 +136,12 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
         const fd = new FormData();
         fd.append("projectTitle",         form.projectTitle.trim());
         fd.append("description",          form.description.trim());
-        fd.append("owner",                form.owner.trim());
         fd.append("status",               form.status);
         fd.append("priority",             form.priority.toLowerCase());
         fd.append("startDate",            form.startDate);
         fd.append("endDate",              form.endDate);
-        fd.append("completionPercentage", form.completionPercentage);
         fd.append("riskLevel",            form.riskLevel.toLowerCase());
+        fd.append("teamMembers", JSON.stringify([]));
 
         // Team as JSON string
         const teamArr = form.teamInput
@@ -163,19 +162,26 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean)
-          .map((name) => ({ name }));
+          .map((name) => ({ userId:name }));
 
         body = JSON.stringify({
-          projectTitle:         form.projectTitle.trim(),
-          description:          form.description.trim(),
-          owner:                form.owner.trim(),
-          assignedTeam:         teamArr,
-          status:               form.status,
-          priority:             form.priority.toLowerCase(),
-          startDate:            form.startDate || undefined,
-          endDate:              form.endDate   || undefined,
-          completionPercentage: Number(form.completionPercentage),
-          riskLevel:            form.riskLevel.toLowerCase(),
+          projectTitle: form.projectTitle.trim(),
+          description: form.description.trim(),
+
+          status: form.status.toLowerCase(),
+          priority: form.priority.toLowerCase(),
+
+          startDate: form.startDate
+            ? new Date(form.startDate).toISOString()
+            : undefined,
+
+          endDate: form.endDate
+            ? new Date(form.endDate).toISOString()
+            : undefined,
+
+          riskLevel: form.riskLevel.toLowerCase(),
+
+          teamMembers: [], // keep empty for now
         });
       }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import api from "../../../lib/api";
+import { discussionsApi } from "../../../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Discussion {
@@ -55,9 +55,9 @@ function NewDiscussionModal({
   onClose: () => void;
   onSave: (data: { topic: string; description: string; tags: string }) => Promise<void>;
 }) {
-  const [form, setForm] = useState({ topic: "", description: "", tags: "" });
+  const [form,   setForm]   = useState({ topic: "", description: "", tags: "" });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error,  setError]  = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -134,8 +134,8 @@ function ThreadView({
   onClose: () => void;
   onComment: (id: string, content: string) => Promise<void>;
 }) {
-  const [content, setContent] = useState("");
-  const [sending, setSending] = useState(false);
+  const [content,       setContent]       = useState("");
+  const [sending,       setSending]       = useState(false);
   const [localComments, setLocalComments] = useState<Comment[]>(discussion.comments || []);
 
   async function handleSend() {
@@ -211,26 +211,22 @@ function ThreadView({
   );
 }
 
-// ── Demo Data ─────────────────────────────────────────────────────────────────
-const DEMO: Discussion[] = [
-  { _id: "1", topic: "API Architecture for Phase 2", description: "Let's discuss the best approach.", author: { name: "John Doe", email: "" }, projectId: { projectTitle: "ERP System" }, replyCount: 5, lastActivityAt: new Date(Date.now() - 30 * 60000).toISOString(), isPinned: true, isClosed: false, createdAt: new Date(Date.now() - 2 * 86400000).toISOString(), tags: ["backend", "api"] },
-  { _id: "2", topic: "UI Design Review for Mobile App", description: "Feedback needed on the latest mockups.", author: { name: "Maria Smith", email: "" }, projectId: { projectTitle: "Mobile App" }, replyCount: 8, lastActivityAt: new Date(Date.now() - 2 * 3600000).toISOString(), isPinned: false, isClosed: false, createdAt: new Date(Date.now() - 86400000).toISOString(), tags: ["design", "ui"] },
-  { _id: "3", topic: "Sprint Planning Q2", description: "Planning session for Q2 sprints.", author: { name: "Alex Lee", email: "" }, projectId: undefined, replyCount: 3, lastActivityAt: new Date(Date.now() - 5 * 3600000).toISOString(), isPinned: false, isClosed: false, createdAt: new Date(Date.now() - 3 * 86400000).toISOString(), tags: ["planning"] },
-];
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function DiscussionsPage() {
-  const [discussions, setDiscussions] = useState<Discussion[]>([]);
-  const [showModal, setShowModal] = useState(false);
+  const [discussions,  setDiscussions]  = useState<Discussion[]>([]);
+  const [showModal,    setShowModal]    = useState(false);
   const [activeThread, setActiveThread] = useState<DiscussionDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await api.get<any>("/discussions?limit=20");
-      setDiscussions(res?.data?.data || []);
-    } catch (_) {
+      const res = await discussionsApi.getAll();
+      setDiscussions(res?.data?.data || res?.data || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load discussions");
       setDiscussions([]);
     } finally {
       setLoading(false);
@@ -241,26 +237,23 @@ export default function DiscussionsPage() {
 
   async function handleCreate(data: { topic: string; description: string; tags: string }) {
     const tags = data.tags.split(",").map((t) => t.trim()).filter(Boolean);
-    await api.post("/discussions", { ...data, tags });
+    await discussionsApi.create({ ...data, tags });
     await fetchAll();
   }
 
   async function openThread(id: string) {
     try {
-      const res = await api.get<any>(`/discussions/${id}`);
+      const res = await discussionsApi.getById(id);
       setActiveThread(res?.data);
-    } catch (_) {
-      // Use demo
-      const d = DEMO.find((d) => d._id === id);
-      if (d) setActiveThread({ ...d, comments: [] });
+    } catch (err: any) {
+      // Show error in thread area rather than silently failing
+      setError(`Failed to open discussion: ${err.message}`);
     }
   }
 
   async function handleComment(discussionId: string, content: string) {
-    await api.post(`/discussions/${discussionId}/comments`, { content });
+    await discussionsApi.addComment(discussionId, content);
   }
-
-  const display = discussions.length ? discussions : DEMO;
 
   return (
     <div className="space-y-8 pb-8">
@@ -277,9 +270,7 @@ export default function DiscussionsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Discussions</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Team conversations and decisions
-          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Team conversations and decisions</p>
         </div>
         <button
           id="new-discussion-btn"
@@ -289,6 +280,14 @@ export default function DiscussionsPage() {
           ＋ New Discussion
         </button>
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-4 rounded-xl">
+          ⚠️ {error}
+          <button onClick={fetchAll} className="ml-3 underline text-xs">Retry</button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
@@ -305,15 +304,25 @@ export default function DiscussionsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-12 text-gray-400">Loading…</td></tr>
-            ) : display.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-12 text-gray-400">
+                  <div className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Loading…
+                  </div>
+                </td>
+              </tr>
+            ) : discussions.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-center py-16 text-gray-400">
                   <span className="text-3xl block mb-2">💬</span>
-                  No discussions yet
+                  No discussions yet. Start a new one!
                 </td>
               </tr>
-            ) : display.map((d) => (
+            ) : discussions.map((d) => (
               <tr
                 key={d._id}
                 className="border-t border-gray-50 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition"

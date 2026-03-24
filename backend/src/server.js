@@ -29,7 +29,12 @@ const activityRoutes = require('./routes/activityRoutes');
 const discussionRoutes = require('./routes/discussionRoutes');
 const reportsRoutes = require('./routes/reportsRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const attendanceRoutes = require("./routes/attendance");
+const employeeRoutes = require('./routes/employee.routes');
+const departmentRoutes = require('./routes/department.routes');
+const attendanceRoutes = require('./routes/attendance.routes');
+const leaveRoutes = require('./routes/leave.routes');
+const hrmsRoutes = require('./routes/hrmsRoutes'); // keeping for stats
+const empRoutesSelf = require('./routes/employeeRoutes'); // self-service
 
 // ─── Admin user controller (getTeam endpoint) ────────────────────────────────
 const { getTeam } = require('./controllers/adminController');
@@ -106,8 +111,12 @@ app.use('/api/timesheets', timesheetRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/discussions', discussionRoutes);
 app.use('/api/reports', reportsRoutes);
-app.use('/api/admin', adminRoutes);
-app.use("/api/attendance", attendanceRoutes);
+app.use('/api/employees', employeeRoutes);
+app.use('/api/departments', departmentRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/leaves', leaveRoutes);
+app.use('/api/hrms', hrmsRoutes); // for legacy/stats
+app.use('/api/employee', empRoutesSelf); // for stats chart etc.
 
 // Team endpoint (under /api/users)
 app.get('/api/users/team', authenticate, organizationIsolation, getTeam);
