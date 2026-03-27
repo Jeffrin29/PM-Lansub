@@ -86,10 +86,10 @@ export default function EmployeePage() {
                 employeeApi.getLeaves(),
                 employeeApi.getMonthlyChart()
             ]);
-            setStats(s.data.data);
-            setAttendance(a.data.data);
-            setLeaves(l.data.data);
-            setChartData(c.data.data);
+            setStats(s?.data?.data || null);
+            setAttendance(a?.data?.data || []);
+            setLeaves(l?.data?.data || []);
+            setChartData(c?.data?.data || []);
         } catch (err) {
             console.error('Failed to fetch employee data', err);
         } finally {
@@ -198,7 +198,7 @@ export default function EmployeePage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 dark:divide-zinc-800">
-                                {loading ? <tr><td colSpan={4} className="text-center py-10">Loading...</td></tr> : attendance.length === 0 ? <tr><td colSpan={4} className="text-center py-10 text-gray-400">No records found</td></tr> : attendance.map((a) => (
+                                {loading ? <tr><td colSpan={4} className="text-center py-10">Loading...</td></tr> : attendance?.length === 0 ? <tr><td colSpan={4} className="text-center py-10 text-gray-400">No records found</td></tr> : attendance.map((a) => (
                                     <tr key={a._id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
                                         <td className="px-5 py-4 font-medium">{a.date}</td>
                                         <td className="px-5 py-4">{a.checkIn ? new Date(a.checkIn).toLocaleTimeString() : '—'}</td>
@@ -259,7 +259,7 @@ export default function EmployeePage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 dark:divide-zinc-800">
-                                {loading ? <tr><td colSpan={5} className="text-center py-10">Loading...</td></tr> : leaves.length === 0 ? <tr><td colSpan={5} className="text-center py-10 text-gray-400">No records found</td></tr> : leaves.map((l) => (
+                                {loading ? <tr><td colSpan={5} className="text-center py-10">Loading...</td></tr> : leaves?.length === 0 ? <tr><td colSpan={5} className="text-center py-10 text-gray-400">No records found</td></tr> : leaves.map((l) => (
                                     <tr key={l._id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
                                         <td className="px-5 py-4 font-medium">{l.leaveType}</td>
                                         <td className="px-5 py-4">{new Date(l.startDate).toLocaleDateString()}</td>

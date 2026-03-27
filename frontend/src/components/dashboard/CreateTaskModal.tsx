@@ -24,16 +24,26 @@ export default function CreateTaskModal({ onClose, onCreate }: any) {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [projRes, userRes] = await Promise.all([
-          projectsApi.getAll(),
-          adminApi.getUsers()
-        ]);
+        // First get projects (IMPORTANT)
+        const projRes = await projectsApi.getAll();
+        console.log("PROJECTS:", projRes);
+
         setProjects(projRes?.data?.data ?? projRes?.data ?? []);
-        setUsers(userRes?.data?.data ?? userRes?.data ?? []);
+
+        // Try users separately (don't break app if fails)
+        try {
+          const userRes = await adminApi.getUsers();
+          setUsers(userRes?.data?.data ?? userRes?.data ?? []);
+        } catch (err) {
+          console.warn("Users API failed, ignoring...");
+          setUsers([]);
+        }
+
       } catch (err) {
-        console.error("Failed to fetch projects/users", err);
+        console.error("Failed to fetch projects", err);
       }
     }
+
     fetchData();
   }, []);
 
@@ -55,7 +65,7 @@ export default function CreateTaskModal({ onClose, onCreate }: any) {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-[100] p-4">
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in duration-200">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-800/20">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -71,7 +81,7 @@ export default function CreateTaskModal({ onClose, onCreate }: any) {
 
         <form onSubmit={handleSubmit} className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            
+
             {/* Project Selection (Full width) */}
             <div className="md:col-span-2 space-y-1.5">
               <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">

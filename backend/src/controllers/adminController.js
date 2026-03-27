@@ -2,6 +2,7 @@
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
+const HrEmployee = require('../models/HrEmployee');
 const { successResponse, errorResponse, getPagination, paginatedResponse } = require('../utils/helpers');
 
 // GET /api/admin/users
@@ -33,7 +34,7 @@ const getUsers = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     const { organizationId } = req.user;
-    const { name, email, password, roleId } = req.body;
+    const { name, email, password } = req.body;
 
     const exists = await User.findOne({ email, organizationId });
     if (exists) return errorResponse(res, 'User with this email already exists', 409);
@@ -41,23 +42,34 @@ const createUser = async (req, res) => {
     const bcrypt = require('bcryptjs');
     const hash = await bcrypt.hash(password || 'TempPass@123', 12);
 
+    // ✅ STEP 1: Create User
     const user = await User.create({
       name,
       email,
       passwordHash: hash,
       organizationId,
-      roleId: roleId || null,
+      roleId: null,
       status: 'active',
+    });
+
+    // ✅ STEP 2: Create Employee (LINK)
+    await HrEmployee.create({
+      organizationId,
+      userId: user._id,   // 🔥 LINK
+      name,
+      email,
+      role: req.body.role || 'Employee',
     });
 
     const safe = user.toObject();
     delete safe.passwordHash;
+
     return successResponse(res, safe, 'User created', 201);
+
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
-
 // PUT /api/admin/users/:id
 const updateUser = async (req, res) => {
   try {

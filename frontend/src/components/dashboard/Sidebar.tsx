@@ -13,7 +13,8 @@ import {
   FaFileAlt,
   FaBell,
   FaUserShield,
-  FaUsers
+  FaUsers,
+  FaRobot
 } from "react-icons/fa";
 
 import { FiLogOut } from "react-icons/fi";
@@ -103,6 +104,11 @@ export default function Sidebar() {
         <Link href="/dashboard/notif" className={itemStyle}>
           <FaBell size={16} />
           Notifications
+        </Link>
+
+        <Link href="/dashboard/ai" className={itemStyle}>
+          <FaRobot size={16} />
+          AI Assistant
         </Link>
 
       </nav>
