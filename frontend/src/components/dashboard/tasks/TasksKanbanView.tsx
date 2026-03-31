@@ -23,10 +23,10 @@ interface Task {
 const COLUMNS = ["Backlog", "To Do", "In Progress", "Complete"];
 
 const COL_COLOR: Record<string, string> = {
-  "Backlog":     "bg-gray-400",
-  "To Do":       "bg-blue-500",
+  "Backlog": "bg-gray-400",
+  "To Do": "bg-blue-500",
   "In Progress": "bg-orange-500",
-  "Complete":    "bg-emerald-500",
+  "Complete": "bg-emerald-500",
 };
 
 interface Props {
@@ -76,14 +76,14 @@ function SortableTaskCard({ task, onClick }: { task: Task; onClick: () => void }
             {task.priority}
           </span>
         )}
-        
+
         <h3 className="font-bold text-sm text-gray-800 dark:text-gray-100 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
           {task.title}
         </h3>
 
         <div className="flex items-center justify-between pt-2">
           <div className="flex items-center gap-2">
-            <Avatar name={task.user} size="sm" />
+            <Avatar name={task.user} />
             <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 truncate max-w-[80px]">
               {task.user}
             </span>
@@ -133,7 +133,7 @@ export default function TasksKanbanView({ tasks, onTaskClick, onDragEnd, onAddTa
 
             {/* Droppable Area / Sortable Context */}
             <div className="flex-1 bg-gray-50/50 dark:bg-zinc-900/30 border border-gray-100 dark:border-zinc-800/50 rounded-3xl p-3 space-y-3">
-              <SortableContext 
+              <SortableContext
                 id={column}
                 items={tasks.filter(t => t.status === column).map(t => t.id)}
                 strategy={verticalListSortingStrategy}
@@ -141,10 +141,10 @@ export default function TasksKanbanView({ tasks, onTaskClick, onDragEnd, onAddTa
                 {tasks
                   .filter((task) => task.status === column)
                   .map((task) => (
-                    <SortableTaskCard 
-                      key={task.id} 
-                      task={task} 
-                      onClick={() => onTaskClick(task)} 
+                    <SortableTaskCard
+                      key={task.id}
+                      task={task}
+                      onClick={() => onTaskClick(task)}
                     />
                   ))}
               </SortableContext>
