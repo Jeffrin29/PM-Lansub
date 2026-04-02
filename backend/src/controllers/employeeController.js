@@ -8,20 +8,30 @@ const { errorResponse, successResponse } = require('../utils/helpers');
 // Helper: find the HR employee record that belongs to the logged-in user
 const getMyEmployee = async (req) => {
   const orgId = req.user?.organizationId;
-  return HrEmployee.findOne({ organizationId: orgId, userId: req.user._id }).lean();
+  const userId = req.user?._id || req.user?.userId;
+  return HrEmployee.findOne({ organizationId: orgId, userId }).lean();
 };
 
 // ─── My Profile ───────────────────────────────────────────────────────────────
 
 exports.getMyProfile = async (req, res) => {
   try {
-    const emp = await getMyEmployee(req);
+    const orgId  = req.user?.organizationId;
+    const userId = req.user?._id || req.user?.userId;
+    const emp = await HrEmployee
+      .findOne({ organizationId: orgId, userId })
+      .populate('userId',       'name email status phone timezone lastLogin avatar')
+      .populate({ path: 'userId', populate: { path: 'roleId', select: 'name displayName level' } })
+      .populate('departmentId', 'name description')
+      .populate('managerId',    'name email')
+      .lean();
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
-    return successResponse(res, 'Profile fetched.', emp);
+    return successResponse(res, emp, 'Profile fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
+
 
 // ─── My Attendance ────────────────────────────────────────────────────────────
 
@@ -35,7 +45,7 @@ exports.getMyAttendance = async (req, res) => {
     if (month) filter.date = { $regex: `^${month}` };
 
     const records = await HrAttendance.find(filter).sort({ date: -1 }).limit(100).lean();
-    return successResponse(res, 'Attendance fetched.', records);
+    return successResponse(res, records, 'Attendance fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -65,7 +75,7 @@ exports.checkIn = async (req, res) => {
         status: 'present',
       });
     }
-    return successResponse(res, 'Checked in successfully.', record);
+    return successResponse(res, record, 'Checked in successfully.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -83,7 +93,7 @@ exports.checkOut = async (req, res) => {
 
     record.checkOut = new Date();
     await record.save();
-    return successResponse(res, 'Checked out successfully.', record);
+    return successResponse(res, record, 'Checked out successfully.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -97,7 +107,7 @@ exports.getMyLeaves = async (req, res) => {
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
     const leaves = await Leave.find({ employeeId: emp._id }).sort({ createdAt: -1 }).lean();
-    return successResponse(res, 'Leaves fetched.', leaves);
+    return successResponse(res, leaves, 'Leaves fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -124,7 +134,7 @@ exports.applyLeave = async (req, res) => {
       reason: reason || '',
       approvalStatus: 'Pending',
     });
-    return successResponse(res, 'Leave application submitted.', leave, 201);
+    return successResponse(res, leave, 'Leave application submitted.', 201);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -160,12 +170,12 @@ exports.getMyStats = async (req, res) => {
 
     const pendingLeaves = await Leave.countDocuments({ employeeId: emp._id, approvalStatus: 'Pending' });
 
-    return successResponse(res, 'Stats fetched.', {
+    return successResponse(res, {
       totalLeavesThisMonth: monthLeaves.length,
       pendingLeaves,
       attendanceThisWeekPct: attendancePct,
       presentDays,
-    });
+    }, 'Stats fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -204,7 +214,7 @@ exports.getMonthlyAttendanceChart = async (req, res) => {
       })
     );
 
-    return successResponse(res, 'Monthly chart data fetched.', data);
+    return successResponse(res, data, 'Monthly chart data fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }

@@ -19,7 +19,9 @@ router.get('/me', emp.getMyLeaves);
 // GET /api/leaves (Admin View)
 router.get('/', requireRole(['Admin', 'Manager']), hrms.getLeaves);
 
-// PUT /api/leaves/:id/status (Admin approval)
-router.put('/:id/status', requireRole(['Admin', 'Manager']), hrms.updateLeaveStatus);
+// PUT /api/leaves/:id/status (Admin approval — kept for backward compat)
+router.put('/:id/status',   requireRole(['Admin', 'Manager', 'project_manager', 'org_admin']), hrms.updateLeaveStatus);
+// PATCH /api/leaves/:id/status (standard REST alias)
+router.patch('/:id/status', requireRole(['Admin', 'Manager', 'project_manager', 'org_admin']), hrms.updateLeaveStatus);
 
 module.exports = router;

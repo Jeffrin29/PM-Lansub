@@ -1,8 +1,9 @@
 'use strict';
-const User = require('../models/User');
-const Project = require('../models/Project');
-const Task = require('../models/Task');
+const User       = require('../models/User');
+const Project    = require('../models/Project');
+const Task       = require('../models/Task');
 const HrEmployee = require('../models/HrEmployee');
+const { generateEmployeeId } = require('../utils/employeeIdHelper');
 const { successResponse, errorResponse, getPagination, paginatedResponse } = require('../utils/helpers');
 
 // GET /api/admin/users
@@ -52,14 +53,23 @@ const createUser = async (req, res) => {
       status: 'active',
     });
 
-    // ✅ STEP 2: Create Employee (LINK)
-    await HrEmployee.create({
-      organizationId,
-      userId: user._id,   // 🔥 LINK
-      name,
-      email,
-      role: req.body.role || 'Employee',
-    });
+    // ✅ STEP 2: Create HrEmployee (linked to user) with generated employeeId
+    // Guard: skip if an employee record already exists for this userId
+    const existingEmp = await HrEmployee.findOne({ userId: user._id, organizationId });
+    if (!existingEmp) {
+      const employeeId = await generateEmployeeId(organizationId);
+      await HrEmployee.create({
+        organizationId,
+        userId:      user._id,
+        employeeId,
+        name,
+        email,
+        designation: req.body.designation || 'Employee',
+        joiningDate: new Date(),
+        status:      'active',
+        // role is managed via User.roleId → Role — not stored on HrEmployee
+      });
+    }
 
     const safe = user.toObject();
     delete safe.passwordHash;

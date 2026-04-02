@@ -2,9 +2,24 @@ const User = require('../models/User');
 const Organization = require('../models/Organization');
 const Role = require('../models/Role');
 const Session = require('../models/Session');
+const HrEmployee = require('../models/HrEmployee');
+const { generateEmployeeId } = require('../utils/employeeIdHelper');
 const { signAccessToken, signRefreshToken, verifyRefreshToken, getRefreshTokenExpiry } = require('../utils/jwt');
 const { successResponse, errorResponse, getClientIp, parseUserAgent, generateToken } = require('../utils/helpers');
 const { createAuditLog } = require('../utils/auditLog');
+
+// ─── Helper: normalise role name → frontend AppRole string ────────────────────
+// Keeps the frontend roleAccess.ts normaliseRole() function in sync with backend.
+const normalizeRole = (roleObj) => {
+  if (!roleObj) return 'employee';
+  const name = (typeof roleObj === 'string' ? roleObj : roleObj?.name || '').toLowerCase().trim();
+  // Mapping based on user requirements: Admin/org_admin -> admin, manager/pm -> project_manager, hr -> hr, customer/employee -> employee
+  if (name === 'org_admin' || name === 'super_admin' || name === 'admin') return 'admin';
+  if (name === 'project_manager' || name === 'pm' || name === 'manager') return 'project_manager';
+  if (name === 'hr' || name === 'hr_manager') return 'hr';
+  if (name === 'employee' || name === 'member' || name === 'customer') return 'employee';
+  return name || 'employee';
+};
 
 // ─── Helper: build auth response payload ────────────────────────────────────────
 const buildTokens = (user) => {
@@ -65,17 +80,18 @@ exports.register = async (req, res, next) => {
       emailVerified: false,
     });
 
-    const HrEmployee = require("../models/HrEmployee");
-    // After creating user
-
+    // Auto-create HrEmployee record linked to the new user
+    const empId = await generateEmployeeId(user.organizationId);
     await HrEmployee.create({
       organizationId: user.organizationId,
-      userId: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role || "Employee",
-      department: "General",
-      status: "active",
+      userId:         user._id,
+      name:           user.name,
+      email:          user.email,
+      employeeId:     empId,
+      designation:    'Employee',
+      joiningDate:    new Date(),
+      status:         'active',
+      // role is intentionally omitted — RBAC lives in User.roleId → Role
     });
 
     // Update org createdBy
@@ -128,12 +144,13 @@ exports.register = async (req, res, next) => {
         accessToken,
         refreshToken,
         user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
+          _id:            user._id,
+          name:           user.name,
+          email:          user.email,
           organizationId: org._id,
-          roleId: adminRole._id,
-          status: user.status,
+          role:           normalizeRole(adminRole), // Newly registered user is always org_admin
+          roleObject:     adminRole,
+          status:         user.status,
         },
         organization: { _id: org._id, name: org.name, plan: org.plan },
       },
@@ -225,13 +242,14 @@ exports.login = async (req, res, next) => {
       accessToken,
       refreshToken,
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
+        _id:            user._id,
+        name:           user.name,
+        email:          user.email,
         organizationId: user.organizationId,
-        role: user.roleId,
-        status: user.status,
-        lastLogin: user.lastLogin,
+        role:           normalizeRole(user.roleId),   // flat string: "admin" | "hr" | "project_manager" | "employee"
+        roleObject:     user.roleId,                  // full populated role object for advanced use
+        status:         user.status,
+        lastLogin:      user.lastLogin,
       },
     }, 'Login successful.');
   } catch (err) {
@@ -399,11 +417,15 @@ exports.resetPassword = async (req, res, next) => {
 exports.getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.userId)
-      .populate('organizationId', 'name plan status settings')
-      .populate('roleId', 'name displayName level permissions');
-
+      .populate('roleId', 'name displayName level')
+      .populate('organizationId', 'name plan')
+      .lean();
     if (!user) return errorResponse(res, 'User not found.', 404);
-    return successResponse(res, user, 'Profile fetched.');
+
+    // Normalize role for frontend consistency
+    user.role = normalizeRole(user.roleId);
+
+    return successResponse(res, user, 'User data fetched.');
   } catch (err) {
     next(err);
   }

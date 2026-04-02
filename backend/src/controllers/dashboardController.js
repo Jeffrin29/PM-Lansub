@@ -5,17 +5,35 @@ const User = require('../models/User');
 const Activity = require('../models/Activity');
 const { successResponse, errorResponse } = require('../utils/helpers');
 
+// ── Role helper ───────────────────────────────────────────────────────────────────
+const isElevatedRole = (user) => {
+  const role = user?.role;
+  if (!role) return false;
+  if (role.level >= 50) return true;
+  const name = (role.name || '').toLowerCase();
+  return ['admin', 'org_admin', 'super_admin', 'pm', 'project_manager', 'hr', 'hr_manager'].includes(name);
+};
+
 // GET /api/dashboard/summary
 const getSummary = async (req, res) => {
   try {
     const { organizationId } = req.user;
+    const elevated = isElevatedRole(req.user);
+
+    // Employees scoped to their own tasks and projects they belong to
+    const taskFilter    = elevated
+      ? { organizationId }
+      : { organizationId, assignee: req.user._id };
+    const projectFilter = elevated
+      ? { organizationId }
+      : { organizationId, $or: [{ owner: req.user._id }, { 'teamMembers.userId': req.user._id }] };
 
     const [totalProjects, activeProjects, allTasks, overdueTasksCount] = await Promise.all([
-      Project.countDocuments({ organizationId }),
-      Project.countDocuments({ organizationId, status: 'active' }),
-      Task.find({ organizationId }).select('status dueDate').lean(),
+      Project.countDocuments(projectFilter),
+      Project.countDocuments({ ...projectFilter, status: 'active' }),
+      Task.find(taskFilter).select('status dueDate').lean(),
       Task.countDocuments({
-        organizationId,
+        ...taskFilter,
         status: { $ne: 'done' },
         dueDate: { $lt: new Date() },
       }),
@@ -98,7 +116,11 @@ const getHealth = async (req, res) => {
 const getTaskAnalytics = async (req, res) => {
   try {
     const { organizationId } = req.user;
-    const tasks = await Task.find({ organizationId }).select('status isBlocked').lean();
+    const taskFilter = isElevatedRole(req.user)
+      ? { organizationId }
+      : { organizationId, assignee: req.user._id };
+
+    const tasks = await Task.find(taskFilter).select('status isBlocked').lean();
 
     const notStarted = tasks.filter((t) => t.status === 'todo').length;
     const inProgress = tasks.filter((t) => t.status === 'in_progress' || t.status === 'review').length;
@@ -108,8 +130,8 @@ const getTaskAnalytics = async (req, res) => {
     return successResponse(res, [
       { name: 'Not Started', value: notStarted, color: '#94a3b8' },
       { name: 'In Progress', value: inProgress, color: '#3b82f6' },
-      { name: 'Completed', value: completed, color: '#10b981' },
-      { name: 'Blocked', value: blocked, color: '#ef4444' },
+      { name: 'Completed',   value: completed,  color: '#10b981' },
+      { name: 'Blocked',     value: blocked,    color: '#ef4444' },
     ]);
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -131,14 +153,9 @@ const getProjectProgress = async (req, res) => {
       status: p.status,
     }));
 
-    // Fallback phases if no projects
+    // Return empty if no projects
     if (data.length === 0) {
-      return successResponse(res, [
-        { name: 'Design', progress: 80 },
-        { name: 'Development', progress: 45 },
-        { name: 'Testing', progress: 20 },
-        { name: 'Deployment', progress: 5 },
-      ]);
+      return successResponse(res, []);
     }
 
     return successResponse(res, data);

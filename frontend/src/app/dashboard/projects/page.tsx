@@ -128,11 +128,12 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false);
     }
-  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // stable — refreshKey handled in useEffect below
 
+  // Re-fetch whenever the component mounts OR when refreshKey increments (manual refresh / post-delete)
   useEffect(() => {
     fetchProjects();
-  }, [fetchProjects]);
+  }, [fetchProjects, refreshKey]);
 
   // ── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = useCallback(async (id: string) => {

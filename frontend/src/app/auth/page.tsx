@@ -14,28 +14,70 @@ export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [name, setName] = useState("");
+  const [organizationName, setOrgName] = useState("");
+
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
     try {
+      if (!email || !password) return setError("Please fill in all fields");
       setError("");
+      setLoading(true);
 
       const res = await authApi.login(email, password);
+      const { accessToken, user } = res?.data ?? {};
+      const role = user?.role || "employee";
 
-      const token = res?.data?.accessToken;
+      if (!accessToken) throw new Error("No token received");
 
-      if (!token) {
-        throw new Error("No token received");
+      // Save token + role
+      setToken(accessToken, role);
+
+      // Role-based redirect logic:
+      // admin -> /dashboard/admin
+      // project_manager -> /dashboard
+      // hr -> /dashboard/hr
+      // employee -> /dashboard/employee
+      switch (role) {
+        case 'admin':           router.push("/dashboard/admin"); break;
+        case 'project_manager': router.push("/dashboard"); break;
+        case 'hr':              router.push("/dashboard/hr"); break;
+        default:                router.push("/dashboard/employee"); break;
       }
-
-      // Save token properly
-      setToken(token);
-
-      // Redirect
-      router.push("/dashboard");
-
     } catch (err: any) {
       setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRegister() {
+    try {
+      if (!name || !email || !password) return setError("Please fill in all fields");
+      setError("");
+      setLoading(true);
+
+      const res = await authApi.register({ name, email, password, organizationName });
+      const { accessToken, user } = res?.data ?? {};
+      const role = user?.role || "admin"; // First user is always org_admin -> admin
+
+      if (!accessToken) throw new Error("No token received");
+
+      setToken(accessToken, role);
+
+      // Same role-based redirect for registration:
+      switch (role) {
+        case 'admin':           router.push("/dashboard/admin"); break;
+        case 'project_manager': router.push("/dashboard"); break;
+        case 'hr':              router.push("/dashboard/hr"); break;
+        default:                router.push("/dashboard/employee"); break;
+      }
+    } catch (err: any) {
+      setError(err.message || "Registration failed");
+    } finally {
+      setLoading(false);
     }
   }
   return (
@@ -103,9 +145,10 @@ export default function AuthPage() {
 
               <button
                 onClick={handleLogin}
-                className="w-full py-3 bg-zinc-200 text-black rounded-lg font-medium hover:bg-white transition"
+                disabled={loading}
+                className="w-full py-3 bg-zinc-200 text-black rounded-lg font-medium hover:bg-white transition disabled:opacity-50"
               >
-                Login
+                {loading ? "Logging in..." : "Login"}
               </button>
 
 
@@ -136,43 +179,55 @@ export default function AuthPage() {
               </h1>
 
               <div className="mb-4">
-                <label className="text-sm text-gray-400">
-                  Name
-                </label>
-
+                <label className="text-sm text-gray-400">Name</label>
                 <input
                   type="text"
                   placeholder="Enter name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="w-full mt-1 p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="mb-4">
-                <label className="text-sm text-gray-400">
-                  Email
-                </label>
-
+                <label className="text-sm text-gray-400">Email</label>
                 <input
                   type="email"
                   placeholder="Enter email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full mt-1 p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="text-sm text-gray-400">Organization Name (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="Enter your organization"
+                  value={organizationName}
+                  onChange={(e) => setOrgName(e.target.value)}
                   className="w-full mt-1 p-3 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div className="mb-6">
-                <label className="text-sm text-gray-400">
-                  Password
-                </label>
-
+                <label className="text-sm text-gray-400">Password</label>
                 <input
                   type="password"
                   placeholder="Create password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full mt-1 p-3 bg-black border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              <button className="w-full py-3 bg-zinc-200 text-black rounded-lg font-medium hover:bg-white transition">
-                Create account
+              <button 
+                onClick={handleRegister}
+                disabled={loading}
+                className="w-full py-3 bg-zinc-200 text-black rounded-lg font-medium hover:bg-white transition disabled:opacity-50"
+              >
+                {loading ? "Creating..." : "Create account"}
               </button>
 
               <p className="text-center text-gray-400 text-sm mt-6">

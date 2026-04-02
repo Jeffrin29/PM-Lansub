@@ -75,21 +75,25 @@ export default function EmployeePage() {
     const [chartData, setChartData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
-    const [activeBtn, setActiveBtn] = useState<'in' | 'out' | null>(null);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
+        // Fetch each endpoint independently so one failure (e.g. missing HrEmployee record)
+        // does not block the others from rendering.
+        const settle = async (promise: Promise<any>) => {
+            try { return await promise; } catch { return null; }
+        };
         try {
             const [s, a, l, c] = await Promise.all([
-                employeeApi.getStats(),
-                employeeApi.getAttendance(),
-                employeeApi.getLeaves(),
-                employeeApi.getMonthlyChart()
+                settle(employeeApi.getStats()),
+                settle(employeeApi.getAttendance()),
+                settle(employeeApi.getLeaves()),
+                settle(employeeApi.getMonthlyChart()),
             ]);
-            setStats(s?.data?.data || null);
-            setAttendance(a?.data?.data || []);
-            setLeaves(l?.data?.data || []);
-            setChartData(c?.data?.data || []);
+            if (s)  setStats(s?.data?.data || null);
+            if (a)  setAttendance(a?.data?.data ?? []);
+            if (l)  setLeaves(l?.data?.data ?? []);
+            if (c)  setChartData(c?.data?.data ?? []);
         } catch (err) {
             console.error('Failed to fetch employee data', err);
         } finally {
@@ -99,19 +103,8 @@ export default function EmployeePage() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const handleCheckIn = async () => {
-        setActionLoading(true);
-        try { await employeeApi.checkIn(); fetchData(); }
-        catch (err: any) { alert(err.message); }
-        finally { setActionLoading(false); }
-    };
-
-    const handleCheckOut = async () => {
-        setActionLoading(true);
-        try { await employeeApi.checkOut(); fetchData(); }
-        catch (err: any) { alert(err.message); }
-        finally { setActionLoading(false); }
-    };
+    // Check-in / check-out are handled by the navbar clock-in system.
+    // These handler stubs are kept so the apply-leave form still has actionLoading.
 
     const handleApplyLeave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -134,22 +127,6 @@ export default function EmployeePage() {
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Employee Dashboard</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Self-service portal for attendance and leaves</p>
-                </div>
-                <div className="flex gap-3">
-                    <button
-                        onClick={handleCheckIn}
-                        disabled={actionLoading}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-md transition disabled:opacity-50"
-                    >
-                        Check In
-                    </button>
-                    <button
-                        onClick={handleCheckOut}
-                        disabled={actionLoading}
-                        className="bg-zinc-800 hover:bg-black text-white px-5 py-2.5 rounded-xl text-sm font-medium shadow-md transition disabled:opacity-50"
-                    >
-                        Check Out
-                    </button>
                 </div>
             </div>
 

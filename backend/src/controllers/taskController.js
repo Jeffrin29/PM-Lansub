@@ -4,6 +4,15 @@ const Notification = require('../models/Notification');
 const { successResponse, errorResponse, getPagination, paginatedResponse, getClientIp } = require('../utils/helpers');
 const { createAuditLog } = require('../utils/auditLog');
 
+// ── Role helper (mirrors timesheetController) ─────────────────────────────────
+const isElevatedRole = (user) => {
+  const role = user?.role;
+  if (!role) return false;
+  if (role.level >= 50) return true;
+  const name = (role.name || '').toLowerCase();
+  return ['admin', 'org_admin', 'super_admin', 'pm', 'project_manager', 'hr', 'hr_manager'].includes(name);
+};
+
 // ─── List Tasks ────────────────────────────────────────────────────────────────
 exports.getTasks = async (req, res, next) => {
   try {
@@ -14,13 +23,19 @@ exports.getTasks = async (req, res, next) => {
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
     if (projectId) filter.projectId = projectId;
-    if (assignee) filter.assignee = assignee;
     if (isBlocked !== undefined) filter.isBlocked = isBlocked === 'true';
     if (search) {
       filter.$or = [
         { title: { $regex: search, $options: 'i' } },
         { description: { $regex: search, $options: 'i' } },
       ];
+    }
+
+    // RBAC DATA ISOLATION — employees only see tasks assigned to them
+    if (!isElevatedRole(req.user)) {
+      filter.assignee = req.user._id;
+    } else if (assignee) {
+      filter.assignee = assignee; // elevated roles can filter by specific assignee
     }
 
     const [tasks, total] = await Promise.all([
@@ -75,7 +90,7 @@ exports.createTask = async (req, res, next) => {
       description,
       projectId,
       organizationId: req.user.organizationId,
-      reporter: req.user.userId,
+      reporter: req.user._id,
       assignee: assignee || null,
       status: status || 'todo',
       priority: priority || 'medium',
@@ -84,11 +99,11 @@ exports.createTask = async (req, res, next) => {
       estimatedHours: estimatedHours || null,
       tags: tags || [],
       dependencies: dependencies || [],
-      createdBy: req.user.userId,
+      createdBy: req.user._id,
     });
 
     // Notify assignee
-    if (assignee && assignee !== req.user.userId) {
+    if (assignee && assignee.toString() !== req.user._id.toString()) {
       await Notification.create({
         userId: assignee,
         organizationId: req.user.organizationId,
@@ -101,7 +116,7 @@ exports.createTask = async (req, res, next) => {
     }
 
     await createAuditLog({
-      userId: req.user.userId,
+      userId: req.user._id,
       organizationId: req.user.organizationId,
       action: 'CREATE_TASK',
       entityType: 'task',
@@ -138,13 +153,13 @@ exports.updateTask = async (req, res, next) => {
     });
 
     if (task.status === 'done' && !task.completedBy) {
-      task.completedBy = req.user.userId;
+      task.completedBy = req.user._id;
     }
 
     await task.save();
 
     // Notify new assignee if changed
-    if (req.body.assignee && req.body.assignee !== prevAssignee && req.body.assignee !== req.user.userId) {
+    if (req.body.assignee && req.body.assignee !== prevAssignee && req.body.assignee.toString() !== req.user._id.toString()) {
       await Notification.create({
         userId: req.body.assignee,
         organizationId: req.user.organizationId,
@@ -168,7 +183,7 @@ exports.updateTask = async (req, res, next) => {
     }
 
     await createAuditLog({
-      userId: req.user.userId,
+      userId: req.user._id,
       organizationId: req.user.organizationId,
       action: 'UPDATE_TASK',
       entityType: 'task',
@@ -194,7 +209,7 @@ exports.deleteTask = async (req, res, next) => {
     await task.deleteOne();
 
     await createAuditLog({
-      userId: req.user.userId,
+      userId: req.user._id,
       organizationId: req.user.organizationId,
       action: 'DELETE_TASK',
       entityType: 'task',
@@ -217,11 +232,11 @@ exports.addComment = async (req, res, next) => {
     const task = await Task.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!task) return errorResponse(res, 'Task not found.', 404);
 
-    task.comments.push({ author: req.user.userId, content });
+    task.comments.push({ author: req.user._id, content });
     await task.save();
 
     // Notify other participants
-    if (task.assignee && task.assignee.toString() !== req.user.userId) {
+    if (task.assignee && task.assignee.toString() !== req.user._id.toString()) {
       await Notification.create({
         userId: task.assignee,
         organizationId: req.user.organizationId,
@@ -253,14 +268,14 @@ exports.uploadAttachment = async (req, res, next) => {
       mimetype: req.file.mimetype,
       size: req.file.size,
       path: req.file.path,
-      uploadedBy: req.user.userId,
+      uploadedBy: req.user._id,
     };
 
     task.attachments.push(attachment);
     await task.save();
 
     await createAuditLog({
-      userId: req.user.userId,
+      userId: req.user._id,
       organizationId: req.user.organizationId,
       action: 'UPLOAD_FILE',
       entityType: 'task',

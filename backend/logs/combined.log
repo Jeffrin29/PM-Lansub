@@ -154,3 +154,17 @@
 [2026-03-31 16:35:37] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
 [2026-03-31 16:50:19] [33mwarn[39m: [33m⚠️  MongoDB disconnected. Attempting to reconnect...[39m
 [2026-03-31 16:50:19] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
+[2026-03-31 17:43:52] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-03-31 17:43:52] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-03-31 17:43:52] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-03-31 17:43:52] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-01 14:56:26] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-01 14:56:26] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-01 14:56:26] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-01 14:56:26] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-01 16:42:53] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-01 16:42:53] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-01 16:42:53] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-01 16:42:53] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-01 16:47:21] [32minfo[39m: [32m[39m
+[32m⚠️  SIGINT received. Shutting down gracefully...[39m

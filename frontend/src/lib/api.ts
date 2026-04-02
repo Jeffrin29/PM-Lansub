@@ -16,12 +16,13 @@ export function getToken(): string | null {
   }
 }
 
-export function setToken(token: string): void {
+export function setToken(token: string, role?: string): void {
   if (typeof window === 'undefined') return;
   try {
     const raw = localStorage.getItem('lansub-auth');
     const parsed = raw ? JSON.parse(raw) : {};
     parsed.accessToken = token;
+    if (role) parsed.role = role;
     localStorage.setItem('lansub-auth', JSON.stringify(parsed));
   } catch { }
 }
@@ -69,10 +70,10 @@ export const api = {
 // Auth
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<{ data: { accessToken: string; user: unknown } }>('/auth/login', { email, password }),
+    api.post<{ data: { accessToken: string; user: { _id: string; email: string; role: string; name: string } } }>('/auth/login', { email, password }),
   register: (payload: unknown) =>
-    api.post<{ data: { accessToken: string; user: unknown } }>('/auth/register', payload),
-  me: () => api.get<{ data: unknown }>('/auth/me'),
+    api.post<{ data: { accessToken: string; user: { _id: string; email: string; role: string; name: string } } }>('/auth/register', payload),
+  me: () => api.get<{ data: any }>('/auth/me'),
 };
 
 // Projects
@@ -95,12 +96,15 @@ export const tasksApi = {
 
 // Timesheets
 export const timesheetsApi = {
-  getAll: (params = '') => api.get<any>(`/timesheets?limit=100${params}`),
-  create: (body: unknown) => api.post<any>('/timesheets', body),
-  update: (id: string, body: unknown) => api.put<any>(`/timesheets/${id}`, body),
-  remove: (id: string) => api.delete<any>(`/timesheets/${id}`),
-  clockIn: (body: unknown) => api.post<any>('/timesheets/clock-in', body),
-  clockOut: (body: unknown) => api.post<any>('/timesheets/clock-out', body),
+  getAll:   (params = '')             => api.get<any>(`/timesheets?limit=200${params}`),
+  create:   (body: unknown)           => api.post<any>('/timesheets', body),
+  update:   (id: string, body: unknown) => api.put<any>(`/timesheets/${id}`, body),
+  /** PATCH /:id → approve or reject (admin / PM only) */
+  approve:  (id: string, status: 'approved' | 'rejected') =>
+    api.patch<any>(`/timesheets/${id}`, { status }),
+  remove:   (id: string)              => api.delete<any>(`/timesheets/${id}`),
+  clockIn:  (body: unknown)           => api.post<any>('/timesheets/clock-in', body),
+  clockOut: (body: unknown)           => api.post<any>('/timesheets/clock-out', body),
 };
 
 // Reports
@@ -194,5 +198,20 @@ export const leaveApi = {
 };
 export const departmentApi = hrmsApi;
 export const employeeProfileApi = employeeApi;
+
+// Meetings
+export const meetingsApi = {
+  getAll:  () => api.get<any>('/meetings'),
+  create:  (body: unknown) => api.post<any>('/meetings', body),
+};
+
+// Leaves (direct routes — for admin/PM approval pages)
+export const leavesApi = {
+  getAll:        (params = '') => api.get<any>(`/leaves?${params}`),
+  getMyLeaves:   () => api.get<any>('/leaves/me'),
+  apply:         (body: unknown) => api.post<any>('/leaves/apply', body),
+  updateStatus:  (id: string, body: { approvalStatus: string; rejectionReason?: string }) =>
+    api.patch<any>(`/leaves/${id}/status`, body),
+};
 
 export default api;
