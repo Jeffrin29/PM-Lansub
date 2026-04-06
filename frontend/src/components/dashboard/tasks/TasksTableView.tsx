@@ -41,10 +41,11 @@ function PriorityBadge({ priority }: { priority?: string }) {
   const cfg: Record<string, string> = {
     low:    "bg-gray-100 text-gray-500 dark:bg-zinc-700 dark:text-gray-400",
     medium: "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-    high:   "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+    high:   "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
+    urgent: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   };
-  const cls = cfg[p] ?? cfg.medium;
-  const icons: Record<string, string> = { low: "↓", medium: "→", high: "↑" };
+  const cls = cfg[p] || (p === 'urgent' ? cfg.urgent : cfg.medium);
+  const icons: Record<string, string> = { low: "↓", medium: "→", high: "↑", urgent: "!!" };
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide ${cls}`}>
       <span>{icons[p] ?? "→"}</span>
@@ -56,14 +57,16 @@ function PriorityBadge({ priority }: { priority?: string }) {
 function StatusBadge({ status }: { status: string }) {
   const s = status?.toLowerCase() ?? "";
   const cfg: Record<string, { cls: string; dot: string }> = {
-    "backlog":     { cls: "bg-gray-100 text-gray-600 dark:bg-zinc-700 dark:text-gray-300",       dot: "bg-gray-400" },
+    "backlog":     { cls: "bg-zinc-100 text-zinc-600 dark:bg-zinc-700/50 dark:text-zinc-300",  dot: "bg-zinc-400" },
+    "todo":        { cls: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",     dot: "bg-blue-400" },
     "to do":       { cls: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",     dot: "bg-blue-400" },
+    "in_progress": { cls: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300", dot: "bg-orange-400" },
     "in progress": { cls: "bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300", dot: "bg-orange-400" },
-    "complete":    { cls: "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300", dot: "bg-green-500" },
+    "complete":    { cls: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300", dot: "bg-emerald-500" },
   };
   const { cls, dot } = cfg[s] ?? cfg["backlog"];
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${cls}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${cls}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
       {status}
     </span>
@@ -213,7 +216,7 @@ export default function TasksTableView({ tasks, onView, onEdit, onDelete }: Prop
           {["All","Backlog","To Do","In Progress","Complete"].map(s => <option key={s}>{s}</option>)}
         </select>
         <select value={prioF} onChange={e => { setPrioF(e.target.value); setPage(1); }} className={selectCls}>
-          {["All","Low","Medium","High"].map(p => <option key={p}>{p}</option>)}
+          {["All", "Low", "Medium", "High", "Urgent"].map(p => <option key={p} value={p}>{p}</option>)}
         </select>
         <span className="text-xs text-gray-400 ml-auto">
           {filtered.length} task{filtered.length !== 1 ? "s" : ""}

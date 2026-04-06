@@ -23,7 +23,7 @@ interface Task {
 const COLUMNS = ["Backlog", "To Do", "In Progress", "Complete"];
 
 const COL_COLOR: Record<string, string> = {
-  "Backlog":     "bg-gray-400",
+  "Backlog":     "bg-zinc-400",
   "To Do":       "bg-blue-500",
   "In Progress": "bg-orange-500",
   "Complete":    "bg-emerald-500",
@@ -54,7 +54,7 @@ function SortableTaskCard({ task, onClick }: { task: Task; onClick: () => void }
 
   const priorityColor = (p?: string) => {
     const s = p?.toLowerCase();
-    if (s === 'urgent') return 'text-red-500 bg-red-50 dark:bg-red-900/20';
+    if (s === 'urgent') return 'text-red-600 bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-800';
     if (s === 'high') return 'text-orange-500 bg-orange-50 dark:bg-orange-900/20';
     if (s === 'medium') return 'text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20';
     return 'text-blue-500 bg-blue-50 dark:bg-blue-900/20';
@@ -70,26 +70,45 @@ function SortableTaskCard({ task, onClick }: { task: Task; onClick: () => void }
       className={`group bg-white dark:bg-zinc-800/50 border border-gray-100 dark:border-zinc-700/50 p-4 rounded-2xl cursor-grab active:cursor-grabbing hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-white/5 transition-all duration-200 ${isDragging ? 'z-50' : ''}`}
     >
       <div className="space-y-3">
-        {task.priority && (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${priorityColor(task.priority)}`}>
-            <FiFlag size={10} />
-            {task.priority}
+        <div className="flex items-center justify-between">
+          {task.priority && (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${priorityColor(task.priority)}`}>
+              <FiFlag size={10} />
+              {task.priority}
+            </span>
+          )}
+          <span className="text-[10px] font-bold text-gray-300 dark:text-zinc-600 uppercase tracking-tighter">
+            #{task.id.slice(-4)}
           </span>
-        )}
+        </div>
         
         <h3 className="font-bold text-sm text-gray-800 dark:text-gray-100 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
           {task.title}
         </h3>
 
-        <div className="flex items-center justify-between pt-2">
+        {/* Progress Bar */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 dark:text-zinc-500">
+            <span>Progress</span>
+            <span>{task.progress ?? 0}%</span>
+          </div>
+          <div className="h-1.5 w-full bg-gray-100 dark:bg-zinc-700/50 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-blue-500 transition-all duration-500" 
+              style={{ width: `${task.progress ?? 0}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2">
             <Avatar name={task.user} size="sm" />
-            <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 truncate max-w-[80px]">
-              {task.user}
-            </span>
-          </div>
-          <div className="text-[10px] font-bold text-gray-300 dark:text-zinc-600 uppercase tracking-tighter">
-            #{task.id.slice(-4)}
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300 truncate max-w-[80px]">
+                {task.user}
+              </span>
+              <span className="text-[9px] text-gray-400 dark:text-zinc-500">{task.project}</span>
+            </div>
           </div>
         </div>
       </div>

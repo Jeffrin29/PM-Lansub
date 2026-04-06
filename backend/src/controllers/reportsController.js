@@ -9,8 +9,19 @@ const getProjectsReport = async (req, res) => {
   try {
     const { organizationId } = req.user;
 
+    const userRole = req.user.role?.name?.toLowerCase();
+    const isPrivileged = ['admin', 'hr', 'project_manager'].includes(userRole);
+
+    let projectMatch = { organizationId: new mongoose.Types.ObjectId(organizationId) };
+    if (!isPrivileged) {
+      projectMatch.$or = [
+        { owner: new mongoose.Types.ObjectId(req.user.userId) },
+        { 'teamMembers.userId': new mongoose.Types.ObjectId(req.user.userId) }
+      ];
+    }
+
     const data = await Project.aggregate([
-      { $match: { organizationId: new mongoose.Types.ObjectId(organizationId) } },
+      { $match: projectMatch },
       {
         $lookup: {
           from: 'tasks',
@@ -29,7 +40,7 @@ const getProjectsReport = async (req, res) => {
               $filter: {
                 input: '$tasks',
                 as: 'task',
-                cond: { $eq: ['$$task.status', 'done'] },
+                cond: { $eq: ['$$task.status', 'complete'] },
               },
             },
           },
@@ -38,7 +49,7 @@ const getProjectsReport = async (req, res) => {
               $filter: {
                 input: '$tasks',
                 as: 'task',
-                cond: { $ne: ['$$task.status', 'done'] },
+                cond: { $ne: ['$$task.status', 'complete'] },
               },
             },
           },
@@ -58,18 +69,33 @@ const getProductivityReport = async (req, res) => {
     const { organizationId } = req.user;
     const now = new Date();
 
+    const userRole = req.user.role?.name?.toLowerCase();
+    const isPrivileged = ['admin', 'hr', 'project_manager'].includes(userRole);
+
+    let taskMatch = { 
+      organizationId: new mongoose.Types.ObjectId(organizationId),
+      assignedTo: { $ne: null } 
+    };
+
+    if (!isPrivileged) {
+      taskMatch.$or = [
+        { assignedTo: new mongoose.Types.ObjectId(req.user.userId) },
+        { createdBy: new mongoose.Types.ObjectId(req.user.userId) }
+      ];
+    }
+
     const data = await Task.aggregate([
-      { $match: { organizationId: new mongoose.Types.ObjectId(organizationId), assignee: { $ne: null } } },
+      { $match: taskMatch },
       {
         $group: {
-          _id: '$assignee',
-          completed: { $sum: { $cond: [{ $eq: ['$status', 'done'] }, 1, 0] } },
+          _id: '$assignedTo',
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'complete'] }, 1, 0] } },
           overdue: {
             $sum: {
               $cond: [
                 {
                   $and: [
-                    { $ne: ['$status', 'done'] },
+                    { $ne: ['$status', 'complete'] },
                     { $lt: ['$dueDate', now] },
                   ],
                 },
@@ -81,7 +107,7 @@ const getProductivityReport = async (req, res) => {
           totalTimeMs: {
             $sum: {
               $cond: [
-                { $and: [{ $eq: ['$status', 'done'] }, { $ne: ['$completedAt', null] }, { $ne: ['$createdAt', null] }] },
+                { $and: [{ $eq: ['$status', 'complete'] }, { $ne: ['$completedAt', null] }, { $ne: ['$createdAt', null] }] },
                 { $subtract: ['$completedAt', '$createdAt'] },
                 0,
               ],
@@ -127,19 +153,29 @@ const getDelayReport = async (req, res) => {
     const { organizationId } = req.user;
     const now = new Date();
 
+    const userRole = req.user.role?.name?.toLowerCase();
+    const isPrivileged = ['admin', 'hr', 'project_manager'].includes(userRole);
+
+    let taskMatch = {
+      organizationId: new mongoose.Types.ObjectId(organizationId),
+      dueDate: { $ne: null },
+    };
+
+    if (!isPrivileged) {
+      taskMatch.$or = [
+        { assignedTo: new mongoose.Types.ObjectId(req.user.userId) },
+        { createdBy: new mongoose.Types.ObjectId(req.user.userId) }
+      ];
+    }
+
     const data = await Task.aggregate([
-      {
-        $match: {
-          organizationId: new mongoose.Types.ObjectId(organizationId),
-          dueDate: { $ne: null },
-        },
-      },
+      { $match: taskMatch },
       {
         $project: {
           task: '$title',
           status: 1,
           expectedDate: '$dueDate',
-          actualDate: { $cond: [{ $eq: ['$status', 'done'] }, '$completedAt', null] },
+          actualDate: { $cond: [{ $eq: ['$status', 'complete'] }, '$completedAt', null] },
           delayDays: {
             $let: {
               vars: {

@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { tasksApi } from "../../../lib/api";
-import TaskDrawer from "../../../components/dashboard/TaskDrawer";
-import CreateTaskModal from "../../../components/dashboard/CreateTaskModal";
+import TaskModal from "../../../components/dashboard/TaskModal";
 import TasksViewSwitcher, { TaskView } from "../../../components/dashboard/tasks/TasksViewSwitcher";
 import TasksKanbanView from "../../../components/dashboard/tasks/TasksKanbanView";
 import TasksGanttView from "../../../components/dashboard/tasks/TasksGanttView";
@@ -13,6 +12,7 @@ import { FiPlus, FiFilter, FiRefreshCw } from "react-icons/fi";
 // ─── Local task shape ─────────────────────────────────────────────────────────
 interface Task {
   id: string;
+  _id?: string;
   title: string;
   status: string;
   user: string;
@@ -22,29 +22,35 @@ interface Task {
   progress?: number;
   project?: string;
   risk?: string;
+  assignedTo?: any;
+  projectId?: any;
+  createdBy?: string;
 }
 
 // Normalise a backend task object into our local Task shape
 function normaliseTask(raw: any, idx: number): Task {
   // Status mapping for UI
   const statusMap: Record<string, string> = {
+    "backlog": "Backlog",
     "todo": "To Do",
     "in_progress": "In Progress",
-    "review": "Review",
-    "done": "Complete"
+    "complete": "Complete"
   };
 
+  const assignedUser = typeof raw.assignedTo === "object"
+    ? (raw.assignedTo?.name ?? "Unassigned")
+    : (raw.assignedTo ?? "Unassigned");
+
   return {
+    ...raw,
     id:        raw._id ?? raw.id ?? String(idx),
     title:     raw.title ?? `Task ${idx + 1}`,
     status:    statusMap[raw.status] ?? raw.status ?? "To Do",
-    user:      typeof raw.assignee === "object"
-      ? (raw.assignee?.name ?? "Unassigned")
-      : (raw.assignee ?? "Unassigned"),
+    user:      assignedUser,
     priority:  raw.priority ?? "medium",
     startDate: raw.startDate,
     endDate:   raw.dueDate ?? raw.endDate,
-    progress:  raw.completionPercentage ?? raw.progress ?? (raw.status === 'done' ? 100 : 0),
+    progress:  raw.progress ?? 0,
     project:   typeof raw.projectId === "object"
       ? (raw.projectId?.projectTitle ?? "")
       : (raw.project ?? ""),
@@ -52,7 +58,24 @@ function normaliseTask(raw: any, idx: number): Task {
   };
 }
 
+// Get current user from localStorage
+function getCurrentUser() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("lansub-auth");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const user = parsed?.user || parsed; // sometimes user is the root object
+    return user && typeof user === 'object' ? user : null;
+  } catch { return null; }
+}
+
 export default function TasksPage() {
+  const [currentUser] = useState(() => getCurrentUser());
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const userRole = (currentUser?.role?.name || currentUser?.role || "employee").toString().toLowerCase();
+  const isPrivileged = ["admin", "hr", "project_manager"].includes(userRole);
+
   const [taskView, setTaskView] = useState<TaskView>("Kanban");
   const [tasks,    setTasks]    = useState<Task[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -66,7 +89,7 @@ export default function TasksPage() {
     setError(null);
     try {
       const res = await tasksApi.getAll();
-      const list: any[] = res?.data?.data ?? res?.data ?? res?.tasks ?? [];
+      const list: any[] = res?.data?.data ?? res?.data?.tasks ?? res?.tasks ?? [];
       setTasks(list.map((t, i) => normaliseTask(t, i)));
     } catch (err: any) {
       setError(err.message || "Failed to load tasks");
@@ -84,49 +107,29 @@ export default function TasksPage() {
     if (!over || active.id === over.id) return;
 
     const taskId = active.id;
-    const newStatus = over.id; // Corrected column id in Kanban
+    const newStatusLabel = over.id; // Label from COLUMNS
 
-    // Status mapping backend
+    // Status mapping backend (reverse)
     const backendStatusMap: Record<string, string> = {
-      "Backlog": "todo",
+      "Backlog": "backlog",
       "To Do": "todo",
       "In Progress": "in_progress",
-      "Complete": "done"
+      "Complete": "complete"
     };
 
-    const backendStatus = backendStatusMap[newStatus] || "todo";
+    const backendStatus = backendStatusMap[newStatusLabel] || "todo";
 
-    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus } : t));
+    // Optimistic update
+    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatusLabel } : t));
 
     try {
       await tasksApi.update(taskId, { status: backendStatus });
+      // We don't necessarily need to fetchTasks() here if we trust the optimistic update,
+      // but the user wants "Ensure form updates reflect immediately in UI" which we just did.
+      // fetchTasks(); 
     } catch (err) {
       console.error("Failed to update status", err);
       fetchTasks();
-    }
-  }
-
-  // ── Create task ─────────────────────────────────────────────────────────────
-  async function handleCreateTask(formData: any) {
-    try {
-      // Backend status mapping
-      const statusMap: Record<string, string> = {
-        "Backlog": "todo",
-        "To Do": "todo",
-        "In Progress": "in_progress",
-        "Complete": "done"
-      };
-
-      await tasksApi.create({
-        ...formData,
-        status: statusMap[formData.status] ?? "todo",
-        priority: formData.priority.toLowerCase(),
-        assignee: formData.assignee || null,
-      });
-      await fetchTasks();
-    } catch (err: any) {
-      console.error(err);
-      alert("Task creation failed: " + err.message);
     }
   }
 
@@ -175,7 +178,7 @@ export default function TasksPage() {
           
           <button
             id="add-task-btn"
-            onClick={() => setShowModal(true)}
+            onClick={() => { setSelectedTask(null); setShowModal(true); }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5"
           >
             <FiPlus size={18} />
@@ -206,7 +209,7 @@ export default function TasksPage() {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Workspace Empty</h3>
             <p className="text-sm text-gray-500 mb-8 max-w-xs text-center">Your task list is currently empty. Start by creating a new task for your project.</p>
             <button 
-              onClick={() => setShowModal(true)}
+              onClick={() => { setSelectedTask(null); setShowModal(true); }}
               className="bg-gray-900 dark:bg-white text-white dark:text-black px-6 py-2.5 rounded-xl text-sm font-bold transition-transform hover:scale-105"
             >
               Create My First Task
@@ -217,36 +220,48 @@ export default function TasksPage() {
             {taskView === "Kanban" && (
               <TasksKanbanView
                 tasks={tasks}
-                onTaskClick={setSelectedTask}
+                onTaskClick={(t) => { setSelectedTask(t); setShowModal(true); }}
                 onDragEnd={handleDragEnd}
-                onAddTask={() => setShowModal(true)}
+                onAddTask={() => { setSelectedTask(null); setShowModal(true); }}
               />
             )}
 
             {taskView === "Gantt" && (
-              <TasksGanttView tasks={tasks} />
+              <TasksGanttView tasks={tasks} onTaskClick={(t) => { setSelectedTask(t); setShowModal(true); }} />
             )}
 
             {taskView === "Table" && (
               <TasksTableView
                 tasks={tasks}
-                onView={setSelectedTask}
-                onEdit={(t) => setSelectedTask({ ...t, isEdit: true })}
-                onDelete={deleteTask}
+                onView={(t) => { setSelectedTask(t); setShowModal(true); }}
+                onEdit={(t: any) => { 
+                  if (!isPrivileged && t.createdBy !== currentUserId && t.assignedTo?._id !== currentUserId) {
+                    alert("You can only edit your own tasks.");
+                    return;
+                  }
+                  setSelectedTask(t); 
+                  setShowModal(true); 
+                }}
+                onDelete={(id: string) => {
+                  const t = tasks.find(x => x.id === id);
+                  if (t && !isPrivileged && t.createdBy !== (currentUserId as any)) {
+                    alert("You cannot delete other users' tasks.");
+                    return;
+                  }
+                  deleteTask(id);
+                }}
               />
             )}
           </div>
         )}
       </div>
 
-      {/* ── Task Drawer ── */}
-      <TaskDrawer task={selectedTask} onClose={() => setSelectedTask(null)} />
-
-      {/* ── Create Task Modal ── */}
+      {/* ── Task Modal (Create/Edit) ── */}
       {showModal && (
-        <CreateTaskModal
-          onClose={() => setShowModal(false)}
-          onCreate={handleCreateTask}
+        <TaskModal
+          task={selectedTask}
+          onClose={() => { setShowModal(false); setSelectedTask(null); }}
+          onSave={fetchTasks}
         />
       )}
     </div>

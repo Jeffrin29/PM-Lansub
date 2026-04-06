@@ -19,21 +19,25 @@ interface Task {
 
 interface Props {
   tasks: Task[];
+  onTaskClick?: (t: Task) => void;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const STATUS_BAR: Record<string, string> = {
-  "backlog":      "bg-gray-400 dark:bg-gray-500",
-  "to do":        "bg-blue-500",
-  "in progress":  "bg-orange-400",
-  "complete":     "bg-green-500",
+  "backlog":    "bg-zinc-400 dark:bg-zinc-500",
+  "todo":       "bg-blue-500",
+  "to do":      "bg-blue-500",
+  "in_progress": "bg-orange-500",
+  "in progress":"bg-orange-500",
+  "complete":   "bg-emerald-500",
+  "done":       "bg-emerald-500",
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  "backlog":      "Backlog",
-  "to do":        "To Do",
-  "in progress":  "In Progress",
-  "complete":     "Complete",
+  "backlog":     "Backlog",
+  "todo":        "To Do",
+  "in_progress": "In Progress",
+  "complete":    "Complete",
 };
 
 function barColor(status: string): string {
@@ -44,24 +48,22 @@ function getMonthName(date: Date): string {
   return date.toLocaleString("default", { month: "short", year: "numeric" });
 }
 
-function addMonths(date: Date, n: number): Date {
+function addDays(date: Date, n: number): Date {
   const d = new Date(date);
-  d.setMonth(d.getMonth() + n);
+  d.setDate(d.getDate() + n);
   return d;
 }
 
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
 function daysBetween(a: Date, b: Date): number {
-  return Math.round((b.getTime() - a.getTime()) / 86_400_000);
+  const start = new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime();
+  const end = new Date(b.getFullYear(), b.getMonth(), b.getDate()).getTime();
+  return Math.round((end - start) / 86_400_000);
 }
 
 // ─── Avatar circle ────────────────────────────────────────────────────────────
-const PALETTE = ["bg-blue-500","bg-purple-500","bg-green-500","bg-yellow-500","bg-red-500","bg-indigo-500"];
+const PALETTE = ["bg-blue-500", "bg-purple-500", "bg-green-500", "bg-yellow-500", "bg-red-500", "bg-indigo-500"];
 function MiniAvatar({ name, idx }: { name: string; idx: number }) {
-  const initials = name.split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase();
+  const initials = name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
   return (
     <span className={`inline-flex w-6 h-6 rounded-full items-center justify-center text-[9px] font-bold text-white ${PALETTE[idx % PALETTE.length]}`}>
       {initials}
@@ -70,63 +72,52 @@ function MiniAvatar({ name, idx }: { name: string; idx: number }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const MONTHS_VISIBLE = 6;
+const DAY_WIDTH = 40; // width in px
 
-export default function TasksGanttView({ tasks }: Props) {
-  // Timeline anchor — start of the visible window
+export default function TasksGanttView({ tasks, onTaskClick }: Props) {
+  // Timeline anchor — start date of the visible window
   const [anchor, setAnchor] = useState(() => {
     const d = new Date();
-    d.setDate(1);
+    d.setDate(d.getDate() - 7); // Show 7 days before today
     return d;
   });
 
-  // Build month columns
-  const months = useMemo(() => {
-    return Array.from({ length: MONTHS_VISIBLE }, (_, i) => addMonths(anchor, i));
+  const DAYS_VISIBLE = 45; // 45 days window
+
+  // Build day columns
+  const days = useMemo(() => {
+    return Array.from({ length: DAYS_VISIBLE }, (_, i) => addDays(anchor, i));
   }, [anchor]);
 
-  // Total days in the visible window
-  const windowStart = months[0];
-  const windowEnd   = useMemo(() => {
-    const last = months[months.length - 1];
-    return new Date(last.getFullYear(), last.getMonth() + 1, 0); // last day
-  }, [months]);
-  const totalDays = daysBetween(windowStart, windowEnd) + 1;
+  const windowStart = days[0];
+  const windowEnd = days[days.length - 1];
 
   // Tasks enriched with fallback dates
   const enriched = useMemo(() => {
     return tasks.map((t, i) => {
-      // Fallbacks: distribute tasks across the current month
-      const start = t.startDate
-        ? new Date(t.startDate)
-        : new Date(windowStart.getFullYear(), windowStart.getMonth(), 1 + (i * 5) % 25);
-      const end = t.endDate
-        ? new Date(t.endDate)
-        : new Date(start.getFullYear(), start.getMonth() + 1, start.getDate());
+      const start = t.startDate ? new Date(t.startDate) : new Date();
+      const end = t.endDate ? new Date(t.endDate) : addDays(start, 2);
       return { ...t, _start: start, _end: end };
     });
-  }, [tasks, windowStart]);
+  }, [tasks]);
 
-  function barGeometry(start: Date, end: Date): { left: string; width: string } | null {
-    const clampedStart = start < windowStart ? windowStart : start;
-    const clampedEnd   = end   > windowEnd   ? windowEnd   : end;
-    if (clampedStart > windowEnd || clampedEnd < windowStart) return null;
+  function barGeometry(start: Date, end: Date): { left: number; width: number } | null {
+    const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const e = new Date(end.getFullYear(), end.getMonth(), end.getDate());
 
-    const offsetDays = daysBetween(windowStart, clampedStart);
-    const spanDays   = daysBetween(clampedStart, clampedEnd) + 1;
+    if (e < windowStart || s > windowEnd) return null;
 
-    const left  = `${(offsetDays / totalDays) * 100}%`;
-    const width = `${Math.max((spanDays / totalDays) * 100, 1.5)}%`;
-    return { left, width };
+    const offsetDays = daysBetween(windowStart, s < windowStart ? windowStart : s);
+    const spanDays = daysBetween(s < windowStart ? windowStart : s, e > windowEnd ? windowEnd : e) + 1;
+
+    return { 
+      left: offsetDays * DAY_WIDTH, 
+      width: Math.max(spanDays * DAY_WIDTH, 20) 
+    };
   }
 
-  // Month column widths (proportional to days in month)
-  const colWidths = useMemo(() => {
-    return months.map(m => {
-      const days = daysInMonth(m.getFullYear(), m.getMonth());
-      return `${(days / totalDays) * 100}%`;
-    });
-  }, [months, totalDays]);
+  const currentMonth = getMonthName(days[0]);
+  const endMonth = getMonthName(days[days.length - 1]);
 
   if (tasks.length === 0) {
     return (
@@ -138,144 +129,161 @@ export default function TasksGanttView({ tasks }: Props) {
   }
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
+    <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm flex flex-col h-full">
 
       {/* ── Toolbar ── */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-zinc-800">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div>
-          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Task Timeline</h3>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {getMonthName(months[0])} – {getMonthName(months[months.length - 1])}
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white">Timeline View</h3>
+          <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mt-0.5">
+            {currentMonth} {currentMonth !== endMonth ? `- ${endMonth}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setAnchor(a => addMonths(a, -1))}
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-500
-              hover:bg-gray-100 dark:hover:bg-zinc-800 transition"
+            onClick={() => setAnchor(a => addDays(a, -7))}
+            className="h-8 px-2 flex items-center justify-center rounded-lg text-gray-500
+              hover:bg-gray-100 dark:hover:bg-zinc-800 transition border border-gray-100 dark:border-zinc-800"
           >
             <FiChevronLeft size={16} />
+            <span className="text-[10px] font-bold pr-1">Week</span>
           </button>
           <button
-            onClick={() => {
-              const d = new Date(); d.setDate(1);
-              setAnchor(d);
-            }}
-            className="px-3 h-8 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-300
-              hover:bg-gray-100 dark:hover:bg-zinc-800 transition"
+            onClick={() => setAnchor(addDays(new Date(), -7))}
+            className="px-3 h-8 rounded-lg text-[10px] font-black uppercase text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20
+              hover:bg-blue-100 dark:hover:bg-blue-900/40 transition"
           >
-            Today
+            Reset
           </button>
           <button
-            onClick={() => setAnchor(a => addMonths(a, 1))}
-            className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-500
-              hover:bg-gray-100 dark:hover:bg-zinc-800 transition"
+            onClick={() => setAnchor(a => addDays(a, 7))}
+            className="h-8 px-2 flex items-center justify-center rounded-lg text-gray-500
+              hover:bg-gray-100 dark:hover:bg-zinc-800 transition border border-gray-100 dark:border-zinc-800"
           >
+            <span className="text-[10px] font-bold pl-1">Week</span>
             <FiChevronRight size={16} />
           </button>
         </div>
       </div>
 
       {/* ── Legend ── */}
-      <div className="flex items-center gap-4 px-5 py-2 border-b border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-800/40">
+      <div className="flex items-center gap-4 px-5 py-2.5 border-b border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-zinc-800/40">
         {Object.entries(STATUS_LABEL).map(([key, label]) => (
-          <span key={key} className="inline-flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-            <span className={`w-2.5 h-2.5 rounded-sm ${STATUS_BAR[key]}`} />
+          <span key={key} className="inline-flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tighter">
+            <span className={`w-2 h-2 rounded-full ${STATUS_BAR[key]}`} />
             {label}
           </span>
         ))}
       </div>
 
-      <div className="overflow-x-auto">
-        <div style={{ minWidth: 900 }}>
-
-          {/* ── Month Header ── */}
-          <div className="flex border-b border-gray-100 dark:border-zinc-800 bg-gray-50/80 dark:bg-zinc-900">
-            {/* Task name column */}
-            <div className="w-52 shrink-0 px-4 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Task
+      <div className="flex-1 overflow-auto">
+        <div style={{ width: 220 + (DAYS_VISIBLE * DAY_WIDTH) }} className="relative">
+          
+          {/* Header */}
+          <div className="sticky top-0 z-30 flex items-stretch border-b border-gray-100 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm">
+            <div className="w-52 shrink-0 px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest border-r border-gray-100 dark:border-zinc-800">
+              Task Details
             </div>
-            {/* Month columns */}
             <div className="flex flex-1">
-              {months.map((m, i) => (
-                <div
-                  key={i}
-                  style={{ width: colWidths[i] }}
-                  className="shrink-0 text-center py-2.5 text-xs font-semibold text-gray-500 dark:text-gray-400
-                    border-l border-gray-100 dark:border-zinc-800"
-                >
-                  {getMonthName(m)}
-                </div>
-              ))}
+              {days.map((d, i) => {
+                const isToday = daysBetween(d, new Date()) === 0;
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                return (
+                  <div
+                    key={i}
+                    style={{ width: DAY_WIDTH }}
+                    className={`shrink-0 flex flex-col items-center justify-center py-2 border-r border-gray-50 dark:border-zinc-800/50
+                      ${isWeekend ? 'bg-gray-50/50 dark:bg-zinc-800/20' : ''}`}
+                  >
+                    <span className="text-[9px] font-black text-gray-400 uppercase">{d.toLocaleDateString('default', { weekday: 'narrow' })}</span>
+                    <span className={`text-[11px] font-black mt-0.5 ${isToday ? 'bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center' : 'text-gray-600 dark:text-gray-400'}`}>
+                      {d.getDate()}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* ── Task Rows ── */}
-          {enriched.map((task, rowIdx) => {
-            const geo = barGeometry(task._start, task._end);
-            return (
-              <motion.div
-                key={task.id}
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: rowIdx * 0.03, duration: 0.2 }}
-                className="flex items-center border-b border-gray-50 dark:border-zinc-800/60
-                  hover:bg-blue-50/30 dark:hover:bg-zinc-800/30 transition-colors group"
-              >
-                {/* Task info */}
-                <div className="w-52 shrink-0 flex items-center gap-2 px-4 py-3">
-                  <MiniAvatar name={task.user} idx={rowIdx} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">
-                      {task.title}
-                    </p>
-                    <p className="text-[10px] text-gray-400 truncate">{task.user}</p>
+          {/* Rows */}
+          <div className="relative">
+            {enriched.map((task, rowIdx) => {
+              const geo = barGeometry(task._start, task._end);
+              return (
+                <div
+                  key={task.id}
+                  className="flex items-stretch border-b border-gray-50 dark:border-zinc-800/30 hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors group"
+                >
+                  {/* Task label */}
+                  <div 
+                    onClick={() => onTaskClick?.(task)}
+                    className="w-52 shrink-0 flex items-center gap-2.5 px-4 py-3 border-r border-gray-100 dark:border-zinc-800 cursor-pointer"
+                  >
+                    <MiniAvatar name={task.user} idx={rowIdx} />
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-gray-800 dark:text-gray-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        {task.title}
+                      </p>
+                      <p className="text-[9px] font-medium text-gray-400 truncate">{task.project}</p>
+                    </div>
+                  </div>
+
+                  {/* Timeline area */}
+                  <div className="flex-1 relative h-14">
+                    {/* Columns grid lines */}
+                    <div className="absolute inset-0 flex">
+                      {days.map((_, i) => (
+                        <div key={i} style={{ width: DAY_WIDTH }} className="shrink-0 border-r border-gray-50 dark:border-zinc-800/30" />
+                      ))}
+                    </div>
+
+                    {/* Today marker column */}
+                    {(() => {
+                      const todayIdx = days.findIndex(d => daysBetween(d, new Date()) === 0);
+                      if (todayIdx === -1) return null;
+                      return (
+                        <div 
+                          style={{ left: todayIdx * DAY_WIDTH, width: DAY_WIDTH }} 
+                          className="absolute inset-0 bg-blue-500/5 dark:bg-blue-400/5 z-0 pointer-events-none" 
+                        />
+                      );
+                    })()}
+
+                    {/* Task bar */}
+                    {geo && (
+                      <div
+                        onClick={() => onTaskClick?.(task)}
+                        style={{ left: geo.left, width: geo.width }}
+                        className="absolute top-1/2 -translate-y-1/2 h-8 rounded-xl
+                          flex flex-col shadow-sm cursor-pointer hover:scale-[1.01] transition-all z-20 overflow-hidden"
+                      >
+                        {/* Background with progress */}
+                        <div className={`absolute inset-0 ${barColor(task.status)} opacity-20`} />
+                        <div 
+                          className={`absolute inset-y-0 left-0 ${barColor(task.status)}`}
+                          style={{ width: `${task.progress ?? 0}%` }}
+                        />
+                        
+                        {/* Content */}
+                        <div className="relative h-full flex flex-col justify-center px-2">
+                           <div className="flex items-center justify-between">
+                             <span className="text-[9px] font-black text-black dark:text-white truncate drop-shadow-sm">
+                               {task.progress ?? 0}%
+                             </span>
+                             {task.priority && (
+                               <span className="text-[8px] font-black uppercase text-black dark:text-white opacity-40">
+                                 {task.priority[0]}
+                               </span>
+                             )}
+                           </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {/* Timeline track */}
-                <div className="flex-1 relative h-12 border-l border-gray-100 dark:border-zinc-800">
-                  {/* Month separators */}
-                  {months.map((_, i) => (
-                    <div
-                      key={i}
-                      style={{ left: colWidths.slice(0, i).reduce((s, w) => s + parseFloat(w), 0) + "%" }}
-                      className="absolute top-0 bottom-0 border-l border-gray-100 dark:border-zinc-800"
-                    />
-                  ))}
-
-                  {/* Today line */}
-                  {(() => {
-                    const todayOffset = daysBetween(windowStart, new Date());
-                    if (todayOffset < 0 || todayOffset > totalDays) return null;
-                    return (
-                      <div
-                        style={{ left: `${(todayOffset / totalDays) * 100}%` }}
-                        className="absolute top-0 bottom-0 w-px bg-blue-400/60 z-10"
-                      />
-                    );
-                  })()}
-
-                  {/* Bar */}
-                  {geo && (
-                    <div
-                      style={{ left: geo.left, width: geo.width }}
-                      className="absolute top-1/2 -translate-y-1/2 h-6 rounded-full
-                        flex items-center px-2 overflow-hidden
-                        shadow-md cursor-pointer hover:scale-[1.02] transition-all z-20 group/bar"
-                    >
-                      <div
-                        className={`absolute inset-0 rounded-full ${barColor(task.status)} opacity-90 group-hover/bar:opacity-100 transition-opacity`}
-                      />
-                      <span className="relative z-10 text-[9px] font-black text-white truncate drop-shadow-sm">
-                        {task.title}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

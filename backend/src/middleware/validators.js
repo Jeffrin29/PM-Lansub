@@ -70,20 +70,34 @@ const createTaskValidation = [
   body('title').trim().notEmpty().withMessage('Task title is required').isLength({ min: 3, max: 300 }),
   body('description').optional().trim().isLength({ max: 5000 }),
   body('projectId').notEmpty().withMessage('Project ID is required').isMongoId(),
-  body('status').optional().isIn(['todo', 'in_progress', 'review', 'done']),
+  body('status').optional().isIn(['backlog', 'todo', 'in_progress', 'complete']),
   body('priority').optional().isIn(['low', 'medium', 'high', 'urgent']),
-  body('dueDate').optional().isISO8601().withMessage('Invalid due date'),
-  body('assignee').optional().isMongoId(),
+  body('dueDate').optional().isISO8601().withMessage('Invalid due date').custom((value, { req }) => {
+    if (req.body.startDate && value && new Date(value) < new Date(req.body.startDate)) {
+      throw new Error('Due date must be after start date');
+    }
+    return true;
+  }),
+  body('assignedTo').optional().isMongoId(),
+  body('progress').optional().isInt({ min: 0, max: 100 }),
   body('estimatedHours').optional().isNumeric({ min: 0 }),
 ];
 
 const updateTaskValidation = [
   body('title').optional().trim().isLength({ min: 3, max: 300 }),
   body('description').optional().trim().isLength({ max: 5000 }),
-  body('status').optional().isIn(['todo', 'in_progress', 'review', 'done']),
+  body('status').optional().isIn(['backlog', 'todo', 'in_progress', 'complete']),
   body('priority').optional().isIn(['low', 'medium', 'high', 'urgent']),
-  body('dueDate').optional().isISO8601(),
-  body('assignee').optional().isMongoId(),
+  body('dueDate').optional().isISO8601().custom((value, { req }) => {
+    // If updating dueDate, check against startDate in body or keep current logic if complex
+    // For simplicity, just basic check
+    if (req.body.startDate && value && new Date(value) < new Date(req.body.startDate)) {
+      throw new Error('Due date must be after start date');
+    }
+    return true;
+  }),
+  body('assignedTo').optional().isMongoId(),
+  body('progress').optional().isInt({ min: 0, max: 100 }),
   body('loggedHours').optional().isNumeric({ min: 0 }),
 ];
 

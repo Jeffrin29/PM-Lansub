@@ -99,3 +99,33 @@
 [2026-03-27 11:34:40] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
 [2026-03-27 11:34:40] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
 [2026-03-27 11:34:40] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-04 08:55:12] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-04 08:55:12] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-04 08:55:12] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-04 08:55:12] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-04 15:18:21] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-04 15:18:21] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-04 15:18:21] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-04 15:18:21] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-04 16:41:12] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
+[2026-04-06 10:51:23] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-06 10:51:23] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-06 10:51:23] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-06 10:51:23] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-06 11:04:58] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-06 11:04:58] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-06 11:04:58] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-06 11:04:58] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-06 11:04:58] [32minfo[39m: [32m[39m
+[32m⚠️  SIGINT received. Shutting down gracefully...[39m
+[2026-04-06 11:20:53] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-06 11:20:53] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-06 11:20:53] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-06 11:20:53] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-06 11:34:15] [32minfo[39m: [32mActivity Recorded: {"userId":"69c1009f0e555c74f4f85523","action":"update","module":"task","taskId":"69ccfe21498f85f309956bf7","timestamp":"2026-04-06T06:04:15.048Z","metadata":{}}[39m
+[2026-04-06 11:36:36] [32minfo[39m: [32mActivity Recorded: {"userId":"69c1009f0e555c74f4f85523","action":"update","module":"task","taskId":"69cfd9efd8be3aa2b1514079","timestamp":"2026-04-06T06:06:36.157Z","metadata":{"progress":{"from":0,"to":100},"status":{"from":"in_progress","to":"complete"},"assignedTo":{"to":"69c3bcb5d218b44aac3fc492"}}}[39m
+[2026-04-06 11:37:13] [32minfo[39m: [32mActivity Recorded: {"userId":"69c1009f0e555c74f4f85523","action":"update","module":"task","taskId":"69cce5de11c3211e4e143f32","timestamp":"2026-04-06T06:07:13.225Z","metadata":{"progress":{"from":0,"to":55},"assignedTo":{"to":"69c3bcb5d218b44aac3fc492"}}}[39m
+[2026-04-06 11:37:46] [32minfo[39m: [32mActivity Recorded: {"userId":"69c1009f0e555c74f4f85523","action":"update","module":"task","taskId":"69ccfe21498f85f309956bf7","timestamp":"2026-04-06T06:07:46.314Z","metadata":{"progress":{"from":0,"to":10},"assignedTo":{"to":"69c1009f0e555c74f4f85523"}}}[39m
+[2026-04-06 11:38:02] [32minfo[39m: [32mActivity Recorded: {"userId":"69c1009f0e555c74f4f85523","action":"update","module":"task","taskId":"69cbaf44c5e659edd3cdc353","timestamp":"2026-04-06T06:08:02.173Z","metadata":{"progress":{"from":0,"to":100},"status":{"from":"in_progress","to":"complete"},"assignedTo":{"to":"69c3bcb5d218b44aac3fc492"}}}[39m
+[2026-04-06 12:10:53] [32minfo[39m: [32m[39m
+[32m⚠️  SIGINT received. Shutting down gracefully...[39m

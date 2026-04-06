@@ -9,19 +9,36 @@ const { successResponse, errorResponse } = require('../utils/helpers');
 const getSummary = async (req, res) => {
   try {
     const { organizationId } = req.user;
+    const userRole = req.user.role?.name?.toLowerCase();
+    const isPrivileged = ['admin', 'hr', 'project_manager'].includes(userRole);
+
+    let projectFilter = { organizationId };
+    let taskFilter = { organizationId };
+
+    if (!isPrivileged) {
+      const myProjects = await Project.find({
+        organizationId,
+        $or: [{ owner: req.user.userId }, { 'teamMembers.userId': req.user.userId }]
+      }).select('_id').lean();
+      const pids = myProjects.map(p => p._id);
+      
+      projectFilter._id = { $in: pids };
+      taskFilter.projectId = { $in: pids };
+      taskFilter.$or = [{ assignedTo: req.user.userId }, { createdBy: req.user.userId }];
+    }
 
     const [totalProjects, activeProjects, allTasks, overdueTasksCount] = await Promise.all([
-      Project.countDocuments({ organizationId }),
-      Project.countDocuments({ organizationId, status: 'active' }),
-      Task.find({ organizationId }).select('status dueDate').lean(),
+      Project.countDocuments(projectFilter),
+      Project.countDocuments({ ...projectFilter, status: 'active' }),
+      Task.find(taskFilter).select('status dueDate').lean(),
       Task.countDocuments({
-        organizationId,
-        status: { $ne: 'done' },
+        ...taskFilter,
+        status: { $ne: 'complete' },
         dueDate: { $lt: new Date() },
       }),
     ]);
 
-    const completedTasks = allTasks.filter((t) => t.status === 'done').length;
+    const completedTasks = allTasks.filter((t) => t.status === 'complete').length;
     const teamUtilization =
       allTasks.length > 0 ? Math.round((completedTasks / allTasks.length) * 100) : 0;
 
@@ -44,15 +61,15 @@ const getHealth = async (req, res) => {
     const now = new Date();
 
     const [tasks, projects] = await Promise.all([
-      Task.find({ organizationId }).select('status dueDate assignee estimatedHours').lean(),
+      Task.find({ organizationId }).select('status dueDate assignedTo estimatedHours').lean(),
       Project.find({ organizationId, status: 'active' })
         .select('completionPercentage budget startDate endDate')
         .lean(),
     ]);
 
     const totalTasks = tasks.length;
-    const doneTasks = tasks.filter((t) => t.status === 'done').length;
-    const overdueTasks = tasks.filter((t) => t.status !== 'done' && t.dueDate && t.dueDate < now).length;
+    const doneTasks = tasks.filter((t) => t.status === 'complete').length;
+    const overdueTasks = tasks.filter((t) => t.status !== 'complete' && t.dueDate && t.dueDate < now).length;
     const remainingTasks = totalTasks - doneTasks;
     const progressPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
@@ -98,11 +115,27 @@ const getHealth = async (req, res) => {
 const getTaskAnalytics = async (req, res) => {
   try {
     const { organizationId } = req.user;
-    const tasks = await Task.find({ organizationId }).select('status isBlocked').lean();
+    const userRole = req.user.role?.name?.toLowerCase();
+    const isPrivileged = ['admin', 'hr', 'project_manager'].includes(userRole);
 
-    const notStarted = tasks.filter((t) => t.status === 'todo').length;
-    const inProgress = tasks.filter((t) => t.status === 'in_progress' || t.status === 'review').length;
-    const completed = tasks.filter((t) => t.status === 'done').length;
+    let filter = { organizationId };
+
+    if (!isPrivileged) {
+      const myProjects = await Project.find({
+        organizationId,
+        $or: [{ owner: req.user.userId }, { 'teamMembers.userId': req.user.userId }]
+      }).select('_id').lean();
+      const pids = myProjects.map(p => p._id);
+      
+      filter.projectId = { $in: pids };
+      filter.$or = [{ assignedTo: req.user.userId }, { createdBy: req.user.userId }];
+    }
+
+    const tasks = await Task.find(filter).select('status isBlocked').lean();
+
+    const notStarted = tasks.filter((t) => t.status === 'todo' || t.status === 'backlog').length;
+    const inProgress = tasks.filter((t) => t.status === 'in_progress').length;
+    const completed = tasks.filter((t) => t.status === 'complete').length;
     const blocked = tasks.filter((t) => t.isBlocked).length;
 
     return successResponse(res, [
@@ -153,27 +186,27 @@ const getWorkload = async (req, res) => {
     const { organizationId } = req.user;
     const now = new Date();
 
-    const tasks = await Task.find({ organizationId, assignee: { $ne: null } })
-      .select('assignee status dueDate')
-      .populate('assignee', 'name email')
+    const tasks = await Task.find({ organizationId, assignedTo: { $ne: null } })
+      .select('assignedTo status dueDate')
+      .populate('assignedTo', 'name email')
       .lean();
 
-    // Group by assignee
+    // Group by assignedTo
     const map = {};
     for (const task of tasks) {
-      if (!task.assignee) continue;
-      const uid = task.assignee._id.toString();
+      if (!task.assignedTo) continue;
+      const uid = task.assignedTo._id.toString();
       if (!map[uid]) {
         map[uid] = {
-          user: task.assignee.name || task.assignee.email,
+          user: task.assignedTo.name || task.assignedTo.email,
           assigned: 0,
           completed: 0,
           overdue: 0,
         };
       }
       map[uid].assigned++;
-      if (task.status === 'done') map[uid].completed++;
-      if (task.status !== 'done' && task.dueDate && task.dueDate < now) map[uid].overdue++;
+      if (task.status === 'complete') map[uid].completed++;
+      if (task.status !== 'complete' && task.dueDate && task.dueDate < now) map[uid].overdue++;
     }
 
     return successResponse(res, Object.values(map));
