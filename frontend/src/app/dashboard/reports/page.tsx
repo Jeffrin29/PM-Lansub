@@ -105,16 +105,24 @@ function EmptyState({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-gray-400">
       <span className="text-4xl mb-3">📊</span>
-      <p className="text-sm">{label}</p>
+      <p className="text-sm font-medium">{label}</p>
     </div>
   );
 }
 
+interface ReportItem {
+  projectName: string;
+  total: number;
+  completed: number;
+  inProgress: number;
+  notStarted: number;
+  overdue: number;
+  completion: number;
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ReportsPage() {
-  const [projects, setProjects] = useState<ProjectReport[]>([]);
-  const [productivity, setProductivity] = useState<ProductivityReport[]>([]);
-  const [delays, setDelays] = useState<DelayReport[]>([]);
+  const [reports, setReports] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"projects" | "productivity" | "delays">("projects");
@@ -123,23 +131,8 @@ export default function ReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [pRes, prodRes, dRes] = await Promise.allSettled([
-        reportsApi.projects(),
-        reportsApi.productivity(),
-        reportsApi.delays(),
-      ]);
-      if (pRes.status === "fulfilled") setProjects(pRes.value?.data || []);
-      if (prodRes.status === "fulfilled") setProductivity(prodRes.value?.data || []);
-      if (dRes.status === "fulfilled") setDelays(dRes.value?.data || []);
-
-      // If all three failed, surface an error
-      if (
-        pRes.status === "rejected" &&
-        prodRes.status === "rejected" &&
-        dRes.status === "rejected"
-      ) {
-        setError("Failed to load reports. Please ensure the backend is running.");
-      }
+      const res: any = await reportsApi.getConsolidated();
+      setReports(res?.data || []);
     } catch (err: any) {
       setError(err.message || "Failed to load reports");
     } finally {
@@ -155,13 +148,31 @@ export default function ReportsPage() {
     { id: "delays" as const, label: "Task Delays" },
   ];
 
-  // Derived KPI values from live data
-  const totalProjects = projects.length;
+  // Derived KPI values from live consolidated data
+  const totalProjects = reports.length;
   const avgCompletion = totalProjects
-    ? Math.round(projects.reduce((a, r) => a + r.completion, 0) / totalProjects)
+    ? Math.round(reports.reduce((a, r) => a + r.completion, 0) / totalProjects)
     : 0;
-  const tasksCompleted = projects.reduce((a, r) => a + r.tasksCompleted, 0);
-  const tasksRemaining = projects.reduce((a, r) => a + r.tasksRemaining, 0);
+  const tasksCompleted = reports.reduce((a, r) => a + r.completed, 0);
+  const tasksRemaining = reports.reduce((a, r) => a + (r.total - r.completed), 0);
+  const overdueTotal = reports.reduce((a, r) => a + r.overdue, 0);
+
+  // Chart transformations (Real Data)
+  const chartData = reports.map(r => ({
+    name: r.projectName,
+    completion: r.completion
+  }));
+
+  const teamData = [
+    { name: "Completed", value: reports.reduce((sum, r) => sum + r.completed, 0) },
+    { name: "Overdue", value: reports.reduce((sum, r) => sum + r.overdue, 0) },
+    { name: "In Progress", value: reports.reduce((sum, r) => sum + r.inProgress, 0) },
+  ];
+
+  const delayData = reports.map(r => ({
+    project: r.projectName,
+    delay: r.overdue
+  }));
 
   return (
     <div className="space-y-8 pb-8">
@@ -175,10 +186,7 @@ export default function ReportsPage() {
           <button
             id="export-csv-btn"
             onClick={() => {
-              const data =
-                activeTab === "projects" ? projects :
-                  activeTab === "productivity" ? productivity : delays;
-              exportCSV(data as any, `${activeTab}-report`);
+              exportCSV(reports as any, `consolidated-report`);
             }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-800 transition"
           >
@@ -247,13 +255,13 @@ export default function ReportsPage() {
             <h3 className="font-semibold mb-4 text-gray-900 dark:text-white">Completion by Project</h3>
             {loading ? (
               <Spinner />
-            ) : projects.length === 0 ? (
+            ) : reports.length === 0 ? (
               <EmptyState label="No project data available" />
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={projects} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="project" tick={{ fontSize: 11 }} />
+                <BarChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
                   <Tooltip
                     contentStyle={{
@@ -262,7 +270,7 @@ export default function ReportsPage() {
                       borderRadius: "8px",
                       color: "#fff",
                     }}
-                    formatter={(v) => [`${Number(v ?? 0)}%`, "Completion"]}
+                    formatter={(v) => [`${Number(v)}%`, "Completion"]}
                   />
                   <Bar dataKey="completion" fill="#8b5cf6" radius={[6, 6, 0, 0]} name="Completion %" />
                 </BarChart>
@@ -273,24 +281,23 @@ export default function ReportsPage() {
           <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
             {loading ? (
               <Spinner />
-            ) : projects.length === 0 ? (
+            ) : reports.length === 0 ? (
               <EmptyState label="No project reports found" />
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-zinc-800/50">
                   <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
                     <th className="px-5 py-4 font-semibold">Project</th>
-                    <th className="px-5 py-4 font-semibold">Status</th>
+                    <th className="px-5 py-4 font-semibold">Tasks Done / Total</th>
                     <th className="px-5 py-4 font-semibold">Completion %</th>
-                    <th className="px-5 py-4 font-semibold text-center">Tasks Done</th>
-                    <th className="px-5 py-4 font-semibold text-center">Remaining</th>
+                    <th className="px-5 py-4 font-semibold text-center">Overdue</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.map((r, i) => (
+                  {reports.map((r, i) => (
                     <tr key={i} className="border-t border-gray-50 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition">
-                      <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">{r.project}</td>
-                      <td className="px-5 py-4"><StatusBadge status={r.status} /></td>
+                      <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">{r.projectName}</td>
+                      <td className="px-5 py-4 text-gray-500">{r.completed} / {r.total}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-gray-100 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
@@ -299,8 +306,11 @@ export default function ReportsPage() {
                           <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 w-8 text-right">{r.completion}%</span>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-center text-emerald-600 font-semibold">{r.tasksCompleted}</td>
-                      <td className="px-5 py-4 text-center text-amber-600 font-semibold">{r.tasksRemaining}</td>
+                      <td className="px-5 py-4 text-center">
+                        <span className={`font-semibold ${r.overdue > 0 ? "text-red-500" : "text-emerald-500"}`}>
+                          {r.overdue > 0 ? `+${r.overdue}` : "None"}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -314,57 +324,35 @@ export default function ReportsPage() {
       {activeTab === "productivity" && (
         <div id="report-productivity" className="space-y-6">
           <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-6 shadow-sm">
-            <h3 className="font-semibold mb-4 text-gray-900 dark:text-white">Team Productivity</h3>
+            <h3 className="font-semibold mb-4 text-gray-900 dark:text-white">Aggregated Team Productivity</h3>
             {loading ? (
               <Spinner />
-            ) : productivity.length === 0 ? (
+            ) : reports.length === 0 ? (
               <EmptyState label="No productivity data available" />
             ) : (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={productivity} margin={{ top: 4, right: 4, bottom: 4, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="user" tick={{ fontSize: 11 }} />
+                <BarChart data={teamData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 12 }} />
                   <Tooltip contentStyle={{ background: "rgba(17,24,39,0.9)", border: "none", borderRadius: "8px", color: "#fff" }} />
-                  <Legend />
-                  <Bar dataKey="tasksCompleted" fill="#10b981" radius={[4, 4, 0, 0]} name="Completed" />
-                  <Bar dataKey="overdueTasks" fill="#ef4444" radius={[4, 4, 0, 0]} name="Overdue" />
+                  <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} name="Tasks" />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
 
-          <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
-            {loading ? (
-              <Spinner />
-            ) : productivity.length === 0 ? (
-              <EmptyState label="No productivity records found" />
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-zinc-800/50">
-                  <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
-                    <th className="px-5 py-4 font-semibold">User</th>
-                    <th className="px-5 py-4 font-semibold text-center">Tasks Completed</th>
-                    <th className="px-5 py-4 font-semibold text-center">Avg. Hours</th>
-                    <th className="px-5 py-4 font-semibold text-center">Overdue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {productivity.map((r, i) => (
-                    <tr key={i} className="border-t border-gray-50 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition">
-                      <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">{r.user}</td>
-                      <td className="px-5 py-4 text-center text-emerald-600 font-semibold">{r.tasksCompleted}</td>
-                      <td className="px-5 py-4 text-center text-blue-600 font-semibold">{r.avgCompletionHours}h</td>
-                      <td className="px-5 py-4 text-center">
-                        <span className={`font-semibold ${r.overdueTasks > 0 ? "text-red-500" : "text-gray-400"}`}>
-                          {r.overdueTasks}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Total Completed", value: reports.reduce((a, b) => a + b.completed, 0), color: "text-emerald-500" },
+              { label: "Total Overdue", value: reports.reduce((a, b) => a + b.overdue, 0), color: "text-red-500" },
+              { label: "Total In Progress", value: reports.reduce((a, b) => a + b.inProgress, 0), color: "text-blue-500" },
+            ].map(card => (
+              <div key={card.label} className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+                <p className="text-xs uppercase font-bold text-gray-400 tracking-wider mb-2">{card.label}</p>
+                <p className={`text-4xl font-black ${card.color}`}>{card.value}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -374,34 +362,30 @@ export default function ReportsPage() {
         <div id="report-delays" className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden">
           {loading ? (
             <Spinner />
-          ) : delays.length === 0 ? (
+          ) : reports.length === 0 ? (
             <EmptyState label="No delay reports found" />
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-zinc-800/50">
                 <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
-                  <th className="px-5 py-4 font-semibold">Task</th>
-                  <th className="px-5 py-4 font-semibold">Status</th>
-                  <th className="px-5 py-4 font-semibold">Expected Date</th>
-                  <th className="px-5 py-4 font-semibold">Actual Date</th>
-                  <th className="px-5 py-4 font-semibold text-center">Delay (Days)</th>
+                  <th className="px-5 py-4 font-semibold">Project</th>
+                  <th className="px-5 py-4 font-semibold">Total Tasks</th>
+                  <th className="px-5 py-4 font-semibold text-center">Overdue Tasks</th>
+                  <th className="px-5 py-4 font-semibold text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {delays.map((r, i) => (
+                {reports.map((r, i) => (
                   <tr key={i} className="border-t border-gray-50 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition">
-                    <td className="px-5 py-4 font-medium text-gray-900 dark:text-white max-w-[200px] truncate">{r.task}</td>
-                    <td className="px-5 py-4"><StatusBadge status={r.status} /></td>
-                    <td className="px-5 py-4 text-gray-500 dark:text-gray-400 text-xs">
-                      {r.expectedDate ? new Date(r.expectedDate).toLocaleDateString() : "—"}
-                    </td>
-                    <td className="px-5 py-4 text-gray-500 dark:text-gray-400 text-xs">
-                      {r.actualDate ? new Date(r.actualDate).toLocaleDateString() : "—"}
-                    </td>
+                    <td className="px-5 py-4 font-medium text-gray-900 dark:text-white">{r.projectName}</td>
+                    <td className="px-5 py-4 text-gray-500">{r.total}</td>
+                    <td className="px-5 py-4 text-center text-red-500 font-bold">{r.overdue}</td>
                     <td className="px-5 py-4 text-center">
-                      <span className={`font-bold text-sm ${r.delayDays > 0 ? "text-red-500" : "text-emerald-500"}`}>
-                        {r.delayDays > 0 ? `+${r.delayDays}` : "On time"}
-                      </span>
+                      {r.overdue > 0 ? (
+                        <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest bg-red-100 text-red-600 rounded-lg">Delayed</span>
+                      ) : (
+                        <span className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest bg-emerald-100 text-emerald-600 rounded-lg">On Track</span>
+                      )}
                     </td>
                   </tr>
                 ))}

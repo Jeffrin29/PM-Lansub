@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { timesheetsApi, projectsApi, tasksApi } from "../../../lib/api";
+import { timesheetsApi, projectsApi, tasksApi, authApi } from "../../../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Timesheet {
   _id: string;
   date: string;
-  userId?: { name: string; email: string };
-  taskId?: { title: string };
-  projectId?: { projectTitle: string };
+  user?: { _id: string; name: string };
+  task?: { _id: string; title: string };
+  project: { _id: string; projectTitle: string };
   hours: number;
   billingType: "billable" | "non-billable" | "internal";
   status: "pending" | "approved" | "rejected";
@@ -52,15 +52,17 @@ function TimeEntryModal({
   onSave,
   projects,
   tasks,
+  currentUser,
 }: {
   onClose: () => void;
   onSave: (data: Partial<Timesheet>) => Promise<void>;
   projects: Project[];
   tasks: Task[];
+  currentUser: any;
 }) {
   const [form, setForm] = useState({
-    taskId:      "",
-    projectId:   "",
+    task:        "",
+    project:     "",
     hours:       "",
     billingType: "billable",
     notes:       "",
@@ -71,7 +73,7 @@ function TimeEntryModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.projectId)                          { setError("Project is required"); return; }
+    if (!form.project)                            { setError("Project is required"); return; }
     if (!form.hours || parseFloat(form.hours) <= 0) { setError("Enter valid hours"); return; }
     setSaving(true);
     try {
@@ -104,6 +106,15 @@ function TimeEntryModal({
             </div>
           )}
           <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">User</label>
+            <input
+              type="text"
+              readOnly
+              value={currentUser?.name || "Loading..."}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800 text-sm text-gray-500 cursor-not-allowed"
+            />
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date *</label>
             <input
               type="date"
@@ -116,8 +127,8 @@ function TimeEntryModal({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Project *</label>
             <select
               id="ts-project-select"
-              value={form.projectId}
-              onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+              value={form.project}
+              onChange={(e) => setForm({ ...form, project: e.target.value })}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select project…</option>
@@ -130,8 +141,8 @@ function TimeEntryModal({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Task</label>
             <select
               id="ts-task-select"
-              value={form.taskId}
-              onChange={(e) => setForm({ ...form, taskId: e.target.value })}
+              value={form.task}
+              onChange={(e) => setForm({ ...form, task: e.target.value })}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select task (optional)…</option>
@@ -206,6 +217,7 @@ export default function TimesheetsPage() {
   const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
   const [projects,   setProjects]   = useState<Project[]>([]);
   const [tasks,      setTasks]      = useState<Task[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [showModal,  setShowModal]  = useState(false);
   const [groupBy,    setGroupBy]    = useState<"date" | "project" | "user">("date");
   const [statusFilter, setStatusFilter] = useState("");
@@ -216,14 +228,16 @@ export default function TimesheetsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [tsRes, projRes, taskRes] = await Promise.allSettled([
+      const [tsRes, projRes, taskRes, userRes] = await Promise.allSettled([
         timesheetsApi.getAll(),
         projectsApi.getAll(),
         tasksApi.getAll(),
+        authApi.me(),
       ]);
       if (tsRes.status   === "fulfilled") setTimesheets(tsRes.value?.data?.data   || tsRes.value?.data   || []);
       if (projRes.status === "fulfilled") setProjects(projRes.value?.data?.data   || projRes.value?.data || []);
       if (taskRes.status === "fulfilled") setTasks(taskRes.value?.data?.data      || taskRes.value?.data || []);
+      if (userRes.status === "fulfilled") setCurrentUser((userRes.value as any).data);
     } catch (err: any) {
       setError(err.message || "Failed to load timesheets");
     } finally {
@@ -239,7 +253,12 @@ export default function TimesheetsPage() {
   }
 
   async function handleApprove(id: string, status: "approved" | "rejected") {
-    await timesheetsApi.update(id, { status });
+    if (status === "approved") {
+      await timesheetsApi.approve(id);
+    } else {
+      await timesheetsApi.reject(id);
+    }
+    
     setTimesheets((prev) =>
       prev.map((t) => (t._id === id ? { ...t, status } : t))
     );
@@ -267,6 +286,7 @@ export default function TimesheetsPage() {
           onSave={handleSave}
           projects={projects}
           tasks={tasks}
+          currentUser={currentUser}
         />
       )}
 
@@ -384,18 +404,18 @@ export default function TimesheetsPage() {
                       {new Date(ts.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </td>
                     <td className="px-5 py-4 font-medium text-gray-800 dark:text-gray-200">
-                      {ts.taskId?.title || <span className="text-gray-400">—</span>}
+                      {ts.task?.title || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-300">
-                      {ts.projectId?.projectTitle || "—"}
+                      {ts.project?.projectTitle || "—"}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold">
-                          {ts.userId?.name?.charAt(0) ?? "?"}
+                          {ts.user?.name?.charAt(0) ?? "?"}
                         </div>
                         <span className="text-gray-700 dark:text-gray-300 text-sm">
-                          {ts.userId?.name || "Unknown"}
+                          {ts.user?.name || "Unknown"}
                         </span>
                       </div>
                     </td>
@@ -407,7 +427,7 @@ export default function TimesheetsPage() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
-                        {ts.status === "pending" && (
+                        {ts.status === "pending" && currentUser?.role?.name?.toLowerCase() === "admin" && (
                           <>
                             <button
                               id={`approve-ts-${ts._id}`}

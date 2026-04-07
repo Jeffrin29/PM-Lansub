@@ -115,6 +115,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leaves', leaveRoutes);
+app.use('/api/leave', leaveRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/hrms', hrmsRoutes); // for legacy/stats
 app.use('/api/employee', empRoutesSelf); // for stats chart etc.

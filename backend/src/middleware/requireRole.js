@@ -12,36 +12,23 @@ const { errorResponse } = require('../utils/helpers');
  *
  * @param {string[]} allowedRoles - e.g. ['Admin', 'Manager']
  */
-const requireRole = (allowedRoles = []) => {
+const requireRole = (roles = []) => {
   return (req, res, next) => {
     if (!req.user) {
       return errorResponse(res, 'Authentication required.', 401);
     }
 
-    const role = req.user.role;
-    if (!role) {
-      return errorResponse(res, 'User has no role assigned.', 403);
+    const userRole = (typeof req.user.role === 'string' ? req.user.role : '').toLowerCase();
+
+    if (!roles.map(r => r.toLowerCase()).includes(userRole)) {
+      return errorResponse(
+        res,
+        `Access denied. Required role(s): ${roles.join(", ")}`,
+        403
+      );
     }
 
-    // Super admin always passes
-    if (role.isSystemRole && role.name === 'super_admin') {
-      return next();
-    }
-
-    const roleName = (role.name || '').toLowerCase();
-    const roleDisplay = (role.displayName || '').toLowerCase();
-
-    const allowed = allowedRoles.map((r) => r.toLowerCase());
-
-    if (allowed.includes(roleName) || allowed.includes(roleDisplay)) {
-      return next();
-    }
-
-    return errorResponse(
-      res,
-      `Access denied. Required role(s): ${allowedRoles.join(', ')}`,
-      403
-    );
+    next();
   };
 };
 

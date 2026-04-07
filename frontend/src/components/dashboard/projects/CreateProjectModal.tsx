@@ -34,6 +34,7 @@ function getToken(): string | null {
 interface Props {
   onClose: () => void;
   onCreated: () => void;
+  project?: any; // To support edit mode
 }
 
 interface FormState {
@@ -45,7 +46,7 @@ interface FormState {
   priority: string;
   startDate: string;
   endDate: string;
-  completionPercentage: string;
+  completion: string;
   riskLevel: string;
 }
 
@@ -73,20 +74,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function CreateProjectModal({ onClose, onCreated }: Props) {
+export default function CreateProjectModal({ onClose, onCreated, project }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<FormState>({
-    projectTitle: "",
-    description: "",
-    owner: "",
-    teamInput: "",
-    status: "Draft",
-    priority: "Medium",
-    startDate: "",
-    endDate: "",
-    completionPercentage: "0",
-    riskLevel: "Low",
+    projectTitle: project?.projectTitle ?? "",
+    description: project?.description ?? "",
+    owner: project?.owner?.name ?? project?.owner ?? "",
+    teamInput: project?.teamMembers?.map((m: any) => m.userId?.name || m.userId).join(", ") ?? "",
+    status: project?.status ? project.status.charAt(0).toUpperCase() + project.status.slice(1) : "Draft",
+    priority: project?.priority ? project.priority.charAt(0).toUpperCase() + project.priority.slice(1) : "Medium",
+    startDate: project?.startDate ? new Date(project.startDate).toISOString().split('T')[0] : "",
+    endDate: project?.endDate ? new Date(project.endDate).toISOString().split('T')[0] : "",
+    completion: project?.completion?.toString() ?? "0",
+    riskLevel: project?.riskLevel ? project.riskLevel.charAt(0).toUpperCase() + project.riskLevel.slice(1) : "Low",
   });
 
   const [files, setFiles]       = useState<File[]>([]);
@@ -180,13 +181,16 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
             : undefined,
 
           riskLevel: form.riskLevel.toLowerCase(),
-
+          completion: parseInt(form.completion),
           teamMembers: [], // keep empty for now
         });
       }
 
-      const res = await fetch(`${API_URL}/api/projects`, {
-        method: "POST",
+      const url = project ? `${API_URL}/api/projects/${project._id}` : `${API_URL}/api/projects`;
+      const method = project ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers,
         body,
       });
@@ -231,10 +235,10 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-zinc-800 shrink-0">
             <div>
               <h2 className="text-base font-bold text-gray-900 dark:text-white">
-                Create New Project
+                {project ? "Edit Project" : "Create New Project"}
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Fill in the details to start a new project
+                {project ? "Update the project details" : "Fill in the details to start a new project"}
               </p>
             </div>
             <button
@@ -381,19 +385,19 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               <Field label="Completion (%)">
                 <div className="space-y-1.5">
                   <input
-                    name="completionPercentage"
+                    name="completion"
                     type="range"
                     min={0}
                     max={100}
                     step={5}
-                    value={form.completionPercentage}
+                    value={form.completion}
                     onChange={handleChange}
                     className="w-full accent-blue-600"
                   />
                   <div className="flex justify-between text-[10px] text-gray-400">
                     <span>0%</span>
                     <span className="font-semibold text-blue-600 dark:text-blue-400 text-xs">
-                      {form.completionPercentage}%
+                      {form.completion}%
                     </span>
                     <span>100%</span>
                   </div>
@@ -497,7 +501,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               ) : (
                 <>
                   <FiPlusCircle size={14} />
-                  Create Project
+                  {project ? "Update Project" : "Create Project"}
                 </>
               )}
             </button>

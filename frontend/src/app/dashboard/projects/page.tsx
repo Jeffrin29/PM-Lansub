@@ -105,6 +105,7 @@ export default function ProjectsPage() {
   // Modals
   const [viewProject, setViewProject] = useState<Project | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   // Refresh trigger
   const [refreshKey, setRefreshKey] = useState(0);
@@ -137,14 +138,18 @@ export default function ProjectsPage() {
   // ── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Are you sure you want to delete this project?")) return;
-    setProjects((prev) => prev.filter((p) => p._id !== id));
     try {
       const token = getToken();
-      await fetch(`${API_URL}/api/projects/${id}`, {
+      const res = await fetch(`${API_URL}/api/projects/${id}`, {
         method: "DELETE",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-    } catch {
+      if (res.ok) {
+        setProjects((prev) => prev.filter((p) => p._id !== id));
+        setRefreshKey((k) => k + 1);
+      }
+    } catch (err) {
+      console.error("Delete failed", err);
       setRefreshKey((k) => k + 1);
     }
   }, []);
@@ -475,7 +480,7 @@ export default function ProjectsPage() {
           <ProjectsTable
             projects={paginated}
             onView={setViewProject}
-            onEdit={(p) => console.log("edit", p._id)}
+            onEdit={(p) => { setEditingProject(p); setShowCreate(true); }}
             onDelete={handleDelete}
           />
         )}
@@ -558,7 +563,7 @@ export default function ProjectsPage() {
         <ProjectDetailModal
           project={viewProject}
           onClose={() => setViewProject(null)}
-          onEdit={(p) => { setViewProject(null); console.log("edit", p._id); }}
+          onEdit={(p) => { setViewProject(null); setEditingProject(p); setShowCreate(true); }}
           onDelete={(id) => { handleDelete(id); setViewProject(null); }}
         />
       )}
@@ -566,8 +571,9 @@ export default function ProjectsPage() {
       {/* ── Create Project Modal ─────────────────────────────────────────────── */}
       {showCreate && (
         <CreateProjectModal
-          onClose={() => setShowCreate(false)}
-          onCreated={() => setRefreshKey((k) => k + 1)}
+          project={editingProject}
+          onClose={() => { setShowCreate(false); setEditingProject(null); }}
+          onCreated={() => { setRefreshKey((k) => k + 1); setEditingProject(null); }}
         />
       )}
     </div>

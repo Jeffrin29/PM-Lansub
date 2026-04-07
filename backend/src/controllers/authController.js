@@ -9,9 +9,11 @@ const { createAuditLog } = require('../utils/auditLog');
 // ─── Helper: build auth response payload ────────────────────────────────────────
 const buildTokens = (user) => {
   const payload = {
+    id: user._id.toString(),
     userId: user._id.toString(),
+    email: user.email,
+    role: (typeof user.role === 'string' ? user.role.toLowerCase() : 'employee'),
     organizationId: user.organizationId.toString(),
-    roleId: user.roleId?.toString() || user.roleId,
   };
 
   return {
@@ -61,6 +63,7 @@ exports.register = async (req, res, next) => {
       passwordHash: password,
       organizationId: org._id,
       roleId: adminRole._id,
+      role: 'admin',
       status: 'active',
       emailVerified: false,
     });

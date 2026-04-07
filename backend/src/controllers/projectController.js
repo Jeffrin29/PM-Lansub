@@ -67,9 +67,10 @@ exports.getProjectById = async (req, res, next) => {
 // ─── Create Project ───────────────────────────────────────────────────────────
 exports.createProject = async (req, res, next) => {
   try {
+    console.log("Project Body:", req.body)
     const {
       projectTitle, description, status, priority, budget,
-      startDate, endDate, riskLevel, teamMembers, tags, milestones,
+      startDate, endDate, riskLevel, teamMembers, tags, milestones, completion,
     } = req.body;
 
     const project = await Project.create({
@@ -86,6 +87,7 @@ exports.createProject = async (req, res, next) => {
       teamMembers: teamMembers || [],
       tags: tags || [],
       milestones: milestones || [],
+      completion: completion || 0,
       createdBy: req.user.userId,
     });
 
@@ -132,9 +134,10 @@ exports.updateProject = async (req, res, next) => {
       return errorResponse(res, 'Only the project owner or admin can update this project.', 403);
     }
 
+    console.log("Project Body:", req.body)
     const allowedFields = [
       'projectTitle', 'description', 'status', 'priority', 'budget',
-      'startDate', 'endDate', 'riskLevel', 'completionPercentage',
+      'startDate', 'endDate', 'riskLevel', 'completion',
       'teamMembers', 'tags', 'milestones', 'owner',
     ];
     const before = project.toObject();

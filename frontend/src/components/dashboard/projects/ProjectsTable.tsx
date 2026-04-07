@@ -135,7 +135,7 @@ export default function ProjectsTable({ projects, onView, onEdit, onDelete }: Pr
 
               {/* Completion */}
               <td className="py-3.5 px-4 min-w-[120px]">
-                <ProgressBar value={p.completionPercentage ?? 0} />
+                <ProgressBar value={p.completion ?? 0} />
               </td>
 
               {/* Risk */}

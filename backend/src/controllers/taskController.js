@@ -129,6 +129,7 @@ exports.getTaskById = async (req, res, next) => {
 // ─── Create Task ───────────────────────────────────────────────────────────────
 exports.createTask = async (req, res, next) => {
   try {
+    console.log("Task Body:", req.body);
     const {
       title, description, projectId, status, priority, progress,
       dueDate, startDate, assignedTo, estimatedHours, tags, dependencies,
@@ -195,6 +196,13 @@ exports.createTask = async (req, res, next) => {
 
     return successResponse(res, task, 'Task created.', 201);
   } catch (err) {
+    if (err.name === 'ValidationError') {
+      const messages = Object.values(err.errors).map(val => val.message);
+      return errorResponse(res, messages.join(', '), 400);
+    }
+    if (err.name === 'CastError') {
+      return errorResponse(res, `Invalid ID format for ${err.path}`, 400);
+    }
     next(err);
   }
 };
@@ -202,6 +210,7 @@ exports.createTask = async (req, res, next) => {
 // ─── Update Task ───────────────────────────────────────────────────────────────
 exports.updateTask = async (req, res, next) => {
   try {
+    console.log("Task Body:", req.body);
     const task = await Task.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!task) return errorResponse(res, 'Task not found.', 404);
 
@@ -279,6 +288,13 @@ exports.updateTask = async (req, res, next) => {
 
     return successResponse(res, task, 'Task updated.');
   } catch (err) {
+    if (err.name === 'ValidationError') {
+      const messages = Object.values(err.errors).map(val => val.message);
+      return errorResponse(res, messages.join(', '), 400);
+    }
+    if (err.name === 'CastError') {
+      return errorResponse(res, `Invalid ID format for ${err.path}`, 400);
+    }
     next(err);
   }
 };
@@ -286,6 +302,7 @@ exports.updateTask = async (req, res, next) => {
 // ─── Delete Task ───────────────────────────────────────────────────────────────
 exports.deleteTask = async (req, res, next) => {
   try {
+    console.log('DELETE TASK ID:', req.params.id);
     const task = await Task.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!task) return errorResponse(res, 'Task not found.', 404);
 

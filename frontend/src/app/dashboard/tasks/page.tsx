@@ -82,6 +82,10 @@ export default function TasksPage() {
   const [error,    setError]    = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [showModal,    setShowModal]    = useState(false);
+  
+  // Gantt specific state
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear,  setSelectedYear]  = useState(new Date().getFullYear());
 
   // ── Fetch tasks from API ────────────────────────────────────────────────────
   const fetchTasks = useCallback(async () => {
@@ -227,7 +231,14 @@ export default function TasksPage() {
             )}
 
             {taskView === "Gantt" && (
-              <TasksGanttView tasks={tasks} onTaskClick={(t) => { setSelectedTask(t); setShowModal(true); }} />
+              <TasksGanttView 
+                tasks={tasks} 
+                onTaskClick={(t) => { setSelectedTask(t); setShowModal(true); }}
+                selectedMonth={selectedMonth}
+                selectedYear={selectedYear}
+                onMonthChange={setSelectedMonth}
+                onYearChange={setSelectedYear}
+              />
             )}
 
             {taskView === "Table" && (

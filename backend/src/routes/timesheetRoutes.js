@@ -10,6 +10,8 @@ router.use(authenticate, organizationIsolation);
 router.get('/',    ctrl.getTimesheets);
 router.post('/',   ctrl.createTimesheet);
 router.put('/:id', ctrl.updateTimesheet);
+router.patch('/:id/approve', ctrl.approveTimesheet);
+router.patch('/:id/reject', ctrl.rejectTimesheet);
 router.delete('/:id', ctrl.deleteTimesheet);
 
 module.exports = router;

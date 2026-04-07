@@ -3,17 +3,17 @@ const mongoose = require('mongoose');
 
 const timesheetSchema = new mongoose.Schema(
   {
-    userId: {
+    user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'User ID is required'],
     },
-    taskId: {
+    task: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Task',
       default: null,
     },
-    projectId: {
+    project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Project',
       required: [true, 'Project ID is required'],
@@ -68,8 +68,8 @@ const timesheetSchema = new mongoose.Schema(
 );
 
 timesheetSchema.index({ organizationId: 1 });
-timesheetSchema.index({ userId: 1, organizationId: 1 });
-timesheetSchema.index({ projectId: 1, organizationId: 1 });
+timesheetSchema.index({ user: 1, organizationId: 1 });
+timesheetSchema.index({ project: 1, organizationId: 1 });
 timesheetSchema.index({ date: 1, organizationId: 1 });
 timesheetSchema.index({ status: 1, organizationId: 1 });
 

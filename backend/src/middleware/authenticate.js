@@ -39,12 +39,13 @@ const authenticate = async (req, res, next) => {
     // Attach user info to request
     req.user = {
       _id: user._id,
+      id: user._id.toString(), // Added id as requested
       userId: user._id.toString(),
       name: user.name,
       email: user.email,
       organizationId: user.organizationId.toString(),
       roleId: user.roleId?._id?.toString(),
-      role: user.roleId,
+      role: (user.role || (user.roleId && user.roleId.name) || 'employee').toLowerCase(),
       status: user.status,
     };
 

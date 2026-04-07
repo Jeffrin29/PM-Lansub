@@ -66,7 +66,7 @@ const projectSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    completionPercentage: {
+    completion: {
       type: Number,
       default: 0,
       min: 0,
@@ -129,7 +129,7 @@ projectSchema.virtual('taskCount', {
 projectSchema.pre('save', function (next) {
   if (this.status === 'completed' && !this.completedAt) {
     this.completedAt = new Date();
-    this.completionPercentage = 100;
+    this.completion = 100;
   }
   if (this.status === 'archived' && !this.archivedAt) {
     this.archivedAt = new Date();

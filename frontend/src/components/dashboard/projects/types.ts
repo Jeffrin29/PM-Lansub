@@ -25,7 +25,7 @@ export interface Project {
   priority?: string;
   startDate?: string;
   endDate?: string;
-  completionPercentage?: number;
+  completion?: number;
   riskLevel?: string;
   attachments?: Attachment[];
   organizationId?: string;

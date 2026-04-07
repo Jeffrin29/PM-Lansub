@@ -87,6 +87,11 @@ const userSchema = new mongoose.Schema(
         expiresAt: { type: Date },
       },
     ],
+    role: {
+      type: String,
+      enum: ['admin', 'hr', 'manager', 'employee'],
+      default: 'employee',
+    },
     preferences: {
       notifications: { type: Boolean, default: true },
       emailAlerts: { type: Boolean, default: true },

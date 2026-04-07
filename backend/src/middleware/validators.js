@@ -54,6 +54,7 @@ const createProjectValidation = [
   body('endDate').optional().isISO8601().withMessage('Invalid end date'),
   body('budget.allocated').optional().isNumeric().withMessage('Budget must be numeric'),
   body('riskLevel').optional().isIn(['low', 'medium', 'high', 'critical']),
+  body('completion').optional().isInt({ min: 0, max: 100 }),
 ];
 
 const updateProjectValidation = [
@@ -61,7 +62,7 @@ const updateProjectValidation = [
   body('description').optional().trim().isLength({ max: 5000 }),
   body('status').optional().isIn(['draft', 'active', 'review', 'completed', 'archived']),
   body('priority').optional().isIn(['low', 'medium', 'high', 'critical']),
-  body('completionPercentage').optional().isInt({ min: 0, max: 100 }),
+  body('completion').optional().isInt({ min: 0, max: 100 }),
   body('riskLevel').optional().isIn(['low', 'medium', 'high', 'critical']),
 ];
 

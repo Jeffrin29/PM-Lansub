@@ -150,32 +150,38 @@ function MiniCalendar() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function OverviewPage() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [urgentTasks, setUrgentTasks] = useState<UrgentTask[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [comments, setComments] = useState<LatestComment[]>([]);
-  const [team, setTeam] = useState<TeamMember[]>([]);
   const [tags] = useState(["Design", "Backend", "Frontend", "Testing", "DevOps", "Marketing", "Finance", "Research"]);
 
-  const fetchAll = useCallback(async () => {
-    const [tasksRes, projRes, commRes, teamRes] = await Promise.allSettled([
-      api.get<any>("/tasks?priority=urgent&status=todo,in_progress&limit=5"),
-      api.get<any>("/projects?limit=6"),
-      api.get<any>("/discussions/comments/latest?limit=5"),
-      api.get<any>("/users/team"),
-    ]);
-
-    if (tasksRes.status === "fulfilled") setUrgentTasks(tasksRes.value?.data?.data || []);
-    if (projRes.status === "fulfilled") setProjects(projRes.value?.data?.data || []);
-    if (commRes.status === "fulfilled") setComments(commRes.value?.data || []);
-    if (teamRes.status === "fulfilled") setTeam(teamRes.value?.data || []);
+  const fetchOverview = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res: any = await api.get("/dashboard/overview");
+      setData(res.data);
+    } catch (err) {
+      console.error("Dashboard overview fetch failed:", err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    fetchOverview();
+  }, [fetchOverview]);
 
-  const filtered = projects.filter((p) =>
-    p.projectTitle.toLowerCase().includes(search.toLowerCase())
+  const filteredProjects = (data?.projectProgress || []).filter((p: any) =>
+    p.projectTitle?.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-8">
@@ -203,6 +209,27 @@ export default function OverviewPage() {
         </div>
       </div>
 
+      {/* Top Row: Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {[
+          { label: "Active Projects", value: data?.stats?.activeProjects || 0, icon: "📊", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-900/20" },
+          { label: "Pending Tasks", value: data?.stats?.pendingTasks || 0, icon: "🔥", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-900/20" },
+          { label: "Team Size", value: data?.stats?.teamSize || 0, icon: "👥", color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-900/20" },
+          { label: "Daily Hours", value: "8h", icon: "⏱️", color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
+        ].map((stat, i) => (
+          <div key={i} className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center text-lg`}>
+                {stat.icon}
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Live</span>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{stat.label}</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
       {/* Row 1: Calendar + Urgent Tasks + Team */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {/* Calendar */}
@@ -219,12 +246,12 @@ export default function OverviewPage() {
             🔥 Urgent Tasks
           </h3>
           <div className="space-y-3">
-            {urgentTasks.length === 0 ? (
+            {!data?.urgentTasks?.length ? (
               <div className="text-center py-6 text-gray-400">
                 <span className="text-3xl block mb-2">🎉</span>
                 <p className="text-sm">No urgent tasks right now</p>
               </div>
-            ) : urgentTasks.map((task) => {
+            ) : data.urgentTasks.map((task: any) => {
               const due = dueDateLabel(task.dueDate);
               return (
                 <div
@@ -252,18 +279,18 @@ export default function OverviewPage() {
             👥 Team Directory
           </h3>
           <div className="grid grid-cols-2 gap-4">
-            {team.length === 0 ? (
+            {!data?.users?.length ? (
               <div className="col-span-2 text-center py-6 text-gray-400">
                 <span className="text-3xl block mb-2">👥</span>
                 <p className="text-sm">No team members found</p>
               </div>
-            ) : team.slice(0, 6).map((member) => (
+            ) : data.users.slice(0, 6).map((member: any) => (
               <div key={member._id} className="flex flex-col items-center text-center p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition">
                 <Avatar name={member.name} size={10} />
                 <p className="text-sm font-medium mt-2 text-gray-800 dark:text-gray-200">
                   {member.name}
                 </p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">{member.role}</p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-widest">{member.role}</p>
               </div>
             ))}
           </div>
@@ -272,13 +299,12 @@ export default function OverviewPage() {
 
       {/* Row 2: Project Directory + Latest Comments */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Project Directory */}
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
           <h3 className="font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
             📁 Project Directory
           </h3>
           <div className="space-y-4">
-            {filtered.map((proj) => (
+            {filteredProjects.map((proj: any) => (
               <div key={proj._id} className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
@@ -296,7 +322,7 @@ export default function OverviewPage() {
                 </div>
               </div>
             ))}
-            {filtered.length === 0 && (
+            {filteredProjects.length === 0 && (
               <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
                 No projects found.
               </p>
@@ -311,18 +337,18 @@ export default function OverviewPage() {
             <h3 className="font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
               💬 Latest Comments
             </h3>
-            {comments.length === 0 ? (
+            {data?.comments?.length === 0 ? (
               <div className="text-center py-6 text-gray-400">
                 <span className="text-3xl block mb-2">💬</span>
                 <p className="text-sm">No recent comments</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {comments.map((c, i) => (
+                {data.comments.map((c: any, i: number) => (
                   <div key={i} className="flex gap-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl">
                     <Avatar name={c.comment.author?.name || "?"} size={8} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mb-0.5">
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5 uppercase font-black tracking-tighter">
                         {c.comment.author?.name} · {c.topic}
                       </p>
                       <p className="text-sm text-gray-700 dark:text-gray-300 truncate">

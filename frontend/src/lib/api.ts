@@ -101,6 +101,8 @@ export const timesheetsApi = {
   getAll: (params = '') => api.get<any>(`/timesheets?limit=100${params}`),
   create: (body: unknown) => api.post<any>('/timesheets', body),
   update: (id: string, body: unknown) => api.put<any>(`/timesheets/${id}`, body),
+  approve: (id: string) => api.patch<any>(`/timesheets/${id}/approve`, {}),
+  reject: (id: string) => api.patch<any>(`/timesheets/${id}/reject`, {}),
   remove: (id: string) => api.delete<any>(`/timesheets/${id}`),
   clockIn: (body: unknown) => api.post<any>('/timesheets/clock-in', body),
   clockOut: (body: unknown) => api.post<any>('/timesheets/clock-out', body),
@@ -111,6 +113,7 @@ export const reportsApi = {
   projects: () => api.get<any>('/reports/projects'),
   productivity: () => api.get<any>('/reports/productivity'),
   delays: () => api.get<any>('/reports/delays'),
+  getConsolidated: () => api.get<any>('/reports'),
 };
 
 // Notifications
@@ -155,7 +158,7 @@ export const dashboardApi = {
 
 // HRMS / HR Admin
 export const hrmsApi = {
-  stats: () => api.get<any>('/hrms/stats'),
+  stats: () => api.get<any>('/hrms/dashboard'),
   // Employees
   getEmployees: (params = '') => api.get<any>(`/hrms/employees?limit=200${params}`),
   createEmployee: (body: unknown) => api.post<any>('/hrms/employees', body),
@@ -167,34 +170,41 @@ export const hrmsApi = {
   updateDepartment: (id: string, body: unknown) => api.put<any>(`/hrms/departments/${id}`, body),
   deleteDepartment: (id: string) => api.delete<any>(`/hrms/departments/${id}`),
   // Attendance & Leaves (Admin)
-  getAttendance: (params = '') => api.get<any>(`/hrms/attendance?${params}`),
-  getLeaves: (params = '') => api.get<any>(`/hrms/leaves?${params}`),
-  updateLeaveStatus: (id: string, body: unknown) => api.put<any>(`/hrms/leaves/${id}/status`, body),
+  getAttendance: (params = '') => api.get<any>(`/attendance/all?${params}`),
+  getLeaves: (params = '') => api.get<any>(`/leaves?${params}`),
+  approveLeave: (id: string) => api.patch<any>(`/leaves/${id}/approve`, {}),
+  rejectLeave: (id: string) => api.patch<any>(`/leaves/${id}/reject`, {}),
+  updateLeaveStatus: (id: string, body: unknown) => api.put<any>(`/leaves/${id}`, body),
 };
 
-// Employee Self-Service
+// Attendance Service (Employee)
+export const attendanceApi = {
+  getStats: () => api.get<any>('/attendance/stats'),
+  getMonthlyChart: () => api.get<any>('/attendance/chart'),
+  getHistory: (params = '') => api.get<any>(`/attendance/my?${params}`),
+  checkIn: () => api.post<any>('/attendance/checkin', {}),
+  checkOut: () => api.post<any>('/attendance/checkout', {}),
+};
+
+// Leave Service (Employee)
+export const leaveApi = {
+  apply: (body: unknown) => api.post<any>('/leaves', body),
+  getHistory: () => api.get<any>('/leaves/my'),
+  delete: (id: string) => api.delete<any>(`/leaves/${id}`),
+};
+
+// Employee Self-Service (Combined for compatibility)
 export const employeeApi = {
   getProfile: () => api.get<any>('/employee/me'),
-  getStats: () => api.get<any>('/employee/stats'),
-  getMonthlyChart: () => api.get<any>('/employee/attendance/chart'),
-  getAttendance: (params = '') => api.get<any>(`/employee/attendance?${params}`),
-  checkIn: () => api.post<any>('/employee/attendance/check-in', {}),
-  checkOut: () => api.post<any>('/employee/attendance/check-out', {}),
-  getLeaves: () => api.get<any>('/employee/leaves'),
-  applyLeave: (body: unknown) => api.post<any>('/employee/leaves/apply', body),
+  getStats: attendanceApi.getStats,
+  getMonthlyChart: attendanceApi.getMonthlyChart,
+  getAttendance: attendanceApi.getHistory,
+  checkIn: attendanceApi.checkIn,
+  checkOut: attendanceApi.checkOut,
+  getLeaves: leaveApi.getHistory,
+  applyLeave: leaveApi.apply,
 };
 
-// Compatibility for requested alias names
-export const attendanceApi = {
-  checkIn: employeeApi.checkIn,
-  checkOut: employeeApi.checkOut,
-  getHistory: employeeApi.getAttendance,
-};
-export const leaveApi = {
-  apply: employeeApi.applyLeave,
-  getHistory: employeeApi.getLeaves,
-  approve: hrmsApi.updateLeaveStatus,
-};
 export const departmentApi = hrmsApi;
 export const employeeProfileApi = employeeApi;
 

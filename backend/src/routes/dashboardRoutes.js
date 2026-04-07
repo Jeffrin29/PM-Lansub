@@ -2,11 +2,13 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/dashboardController');
+const overviewController = require('../controllers/overviewController');
 const { authenticate } = require('../middleware/authenticate');
 const { organizationIsolation } = require('../middleware/organizationIsolation');
 
 router.use(authenticate, organizationIsolation);
 
+router.get('/overview', overviewController.getOverview);
 router.get('/summary',          ctrl.getSummary);
 router.get('/health',           ctrl.getHealth);
 router.get('/task-analytics',   ctrl.getTaskAnalytics);

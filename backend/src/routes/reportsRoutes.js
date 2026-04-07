@@ -7,6 +7,7 @@ const { organizationIsolation } = require('../middleware/organizationIsolation')
 
 router.use(authenticate, organizationIsolation);
 
+router.get('/', ctrl.getReports);
 router.get('/projects',     ctrl.getProjectsReport);
 router.get('/productivity', ctrl.getProductivityReport);
 router.get('/delays',       ctrl.getDelayReport);

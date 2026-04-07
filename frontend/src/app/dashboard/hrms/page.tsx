@@ -36,13 +36,13 @@ interface Leave {
     startDate: string;
     endDate: string;
     reason: string;
-    approvalStatus: 'Pending' | 'Approved' | 'Rejected';
+    status: 'pending' | 'approved' | 'rejected';
 }
 
 interface HrmsStats {
     totalEmployees: number;
     activeEmployees: number;
-    departments: number;
+    departmentsCount: number;
     pendingLeaves: number;
 }
 
@@ -51,9 +51,9 @@ function Badge({ status, type = 'status' }: { status: string; type?: 'status' | 
     const mapping: Record<string, string> = {
         active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
         inactive: 'bg-gray-100 text-gray-500 dark:bg-zinc-800 dark:text-gray-400',
-        Pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-        Approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-        Rejected: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+        pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+        approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+        rejected: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
         present: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
         absent: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
         late: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
@@ -61,15 +61,17 @@ function Badge({ status, type = 'status' }: { status: string; type?: 'status' | 
     const router = useRouter();
 
     useEffect(() => {
-        const user = JSON.parse(localStorage.getItem("lansub-auth") || "{}");
+        const authData = JSON.parse(localStorage.getItem("lansub-auth") || "{}");
+        const role = authData.user?.role;
+        const userRole = (typeof role === 'string' ? role : role?.name || '').toLowerCase();
 
-        if (!["Admin", "Manager"].includes(user.role)) {
+        if (!["admin", "hr", "manager"].includes(userRole)) {
             router.push("/dashboard");
         }
-    }, []);
+    }, [router]);
 
     return (
-        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${mapping[status] || mapping.inactive}`}>
+        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${mapping[status?.toLowerCase()] || mapping.inactive}`}>
             {status}
         </span>
     );
@@ -77,7 +79,7 @@ function Badge({ status, type = 'status' }: { status: string; type?: 'status' | 
 
 // ── Modals ────────────────────────────────────────────────────────────────────
 function EmployeeModal({ onClose, onSave, employee }: { onClose: () => void; onSave: (d: any) => Promise<void>; employee?: Employee }) {
-    const [form, setForm] = useState(employee || { name: '', email: '', role: 'Employee', department: '', status: 'active' });
+    const [form, setForm] = useState<any>(employee || { name: '', email: '', password: '', role: 'Employee', department: '', status: 'active' });
     const [saving, setSaving] = useState(false);
 
     return (
@@ -88,10 +90,19 @@ function EmployeeModal({ onClose, onSave, employee }: { onClose: () => void; onS
                     <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
                 </div>
                 <form className="p-6 space-y-4" onSubmit={async (e) => { e.preventDefault(); setSaving(true); await onSave(form); onClose(); }}>
-                    <input placeholder="Name" className="w-full p-2.5 rounded-xl border dark:bg-zinc-800" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-                    <input placeholder="Email" type="email" className="w-full p-2.5 rounded-xl border dark:bg-zinc-800" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-                    <input placeholder="Department" className="w-full p-2.5 rounded-xl border dark:bg-zinc-800" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
-                    <select className="w-full p-2.5 rounded-xl border dark:bg-zinc-800" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as any })}>
+                    <input placeholder="Name" className="w-full p-2.5 rounded-xl border dark:bg-zinc-800 bg-white" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                    <input placeholder="Email" type="email" className="w-full p-2.5 rounded-xl border dark:bg-zinc-800 bg-white" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+                    {!employee && (
+                         <input placeholder="Password" type="password" className="w-full p-2.5 rounded-xl border dark:bg-zinc-800 bg-white" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                    )}
+                    <select className="w-full p-2.5 rounded-xl border dark:bg-zinc-800 bg-white" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                        <option value="Employee">Employee</option>
+                        <option value="HR">HR</option>
+                        <option value="admin">Admin</option>
+                        <option value="Manager">Manager</option>
+                    </select>
+                    <input placeholder="Department" className="w-full p-2.5 rounded-xl border dark:bg-zinc-800 bg-white" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+                    <select className="w-full p-2.5 rounded-xl border dark:bg-zinc-800 bg-white" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as any })}>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
@@ -119,19 +130,19 @@ export default function HRMSPage() {
         setLoading(true);
         try {
             const s = await hrmsApi.stats();
-            setStats(s.data.data);
+            setStats(s.data);
             if (activeTab === 'employees') {
                 const res = await hrmsApi.getEmployees(search ? `&search=${search}` : '');
-                setData(res.data.data);
+                setData(Array.isArray(res.data) ? res.data : []);
             } else if (activeTab === 'departments') {
                 const res = await hrmsApi.getDepartments();
-                setData(res.data.data);
+                setData(Array.isArray(res.data) ? res.data : []);
             } else if (activeTab === 'attendance') {
                 const res = await hrmsApi.getAttendance();
-                setData(res.data.data);
+                setData(Array.isArray(res.data) ? res.data : []);
             } else if (activeTab === 'leave') {
                 const res = await hrmsApi.getLeaves();
-                setData(res.data.data);
+                setData(Array.isArray(res.data) ? res.data : []);
             }
         } catch (err) {
             console.error(err);
@@ -143,7 +154,11 @@ export default function HRMSPage() {
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const handleLeaveAction = async (id: string, status: string) => {
-        await hrmsApi.updateLeaveStatus(id, { approvalStatus: status });
+        if (status === 'approved') {
+            await hrmsApi.approveLeave(id);
+        } else {
+            await hrmsApi.rejectLeave(id);
+        }
         fetchData();
     };
 
@@ -163,7 +178,7 @@ export default function HRMSPage() {
                 {[
                     { label: 'Total Employees', value: stats?.totalEmployees ?? '—', color: 'text-violet-600' },
                     { label: 'Active', value: stats?.activeEmployees ?? '—', color: 'text-emerald-600' },
-                    { label: 'Departments', value: stats?.departments ?? '—', color: 'text-blue-600' },
+                    { label: 'Departments', value: stats?.departmentsCount ?? '—', color: 'text-blue-600' },
                     { label: 'Pending Leaves', value: stats?.pendingLeaves ?? '—', color: 'text-red-500' },
                 ].map((s) => (
                     <div key={s.label} className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
@@ -230,12 +245,15 @@ export default function HRMSPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 dark:divide-zinc-800">
-                                {data.map((a: Attendance) => (
-                                    <tr key={a._id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
-                                        <td className="px-5 py-4"><p className="font-medium">{a.employeeId?.name}</p><p className="text-xs text-gray-400">{a.employeeId?.email}</p></td>
-                                        <td className="px-5 py-4">{a.date}</td>
-                                        <td className="px-5 py-4">{a.checkIn ? new Date(a.checkIn).toLocaleTimeString() : '—'}</td>
-                                        <td className="px-5 py-4">{a.checkOut ? new Date(a.checkOut).toLocaleTimeString() : '—'}</td>
+                                    {data.map((a: any) => (
+                                        <tr key={a._id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
+                                            <td className="px-5 py-4">
+                                                <p className="font-medium">{a.user?.name || 'Unknown'}</p>
+                                                <p className="text-xs text-gray-400">{a.user?.email || '—'}</p>
+                                            </td>
+                                            <td className="px-5 py-4">{a.date}</td>
+                                            <td className="px-5 py-4">{a.checkIn ? new Date(a.checkIn).toLocaleTimeString() : '—'}</td>
+                                            <td className="px-5 py-4">{a.checkOut ? new Date(a.checkOut).toLocaleTimeString() : '—'}</td>
                                         <td className="px-5 py-4"><Badge status={a.status} /></td>
                                     </tr>
                                 ))}
@@ -257,17 +275,17 @@ export default function HRMSPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 dark:divide-zinc-800">
-                                {data.map((l: Leave) => (
+                                {data.map((l: any) => (
                                     <tr key={l._id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
-                                        <td className="px-5 py-4 font-medium">{l.employeeId?.name}</td>
+                                        <td className="px-5 py-4 font-medium">{l.user?.name || 'Unknown'}</td>
                                         <td className="px-5 py-4">{l.leaveType}</td>
                                         <td className="px-5 py-4 text-xs">{new Date(l.startDate).toLocaleDateString()} - {new Date(l.endDate).toLocaleDateString()}</td>
-                                        <td className="px-5 py-4"><Badge status={l.approvalStatus} /></td>
+                                        <td className="px-5 py-4"><Badge status={l.status} /></td>
                                         <td className="px-5 py-4 text-right">
-                                            {l.approvalStatus === 'Pending' && (
+                                            {l.status?.toLowerCase() === 'pending' && (
                                                 <div className="flex justify-end gap-2">
-                                                    <button onClick={() => handleLeaveAction(l._id, 'Approved')} className="text-emerald-600 hover:underline">Approve</button>
-                                                    <button onClick={() => handleLeaveAction(l._id, 'Rejected')} className="text-red-500 hover:underline">Reject</button>
+                                                    <button onClick={() => handleLeaveAction(l._id, 'approved')} className="text-emerald-600 hover:underline">Approve</button>
+                                                    <button onClick={() => handleLeaveAction(l._id, 'rejected')} className="text-red-500 hover:underline">Reject</button>
                                                 </div>
                                             )}
                                         </td>

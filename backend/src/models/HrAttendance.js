@@ -19,7 +19,7 @@ const hrAttendanceSchema = new mongoose.Schema(
       default: null,
     },
     date: {
-      type: String, // "YYYY-MM-DD"
+      type: Date,
       required: true,
     },
     checkIn: {

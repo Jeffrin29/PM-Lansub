@@ -7,11 +7,12 @@ const { requireRole } = require('../middleware/requireRole');
 const { organizationIsolation } = require('../middleware/organizationIsolation');
 const hrms = require('../controllers/hrmsController');
 
-// All HRMS routes require authentication + org isolation + Admin or Manager role
-router.use(authenticate, organizationIsolation, requireRole(['Admin', 'Manager', 'admin', 'manager', 'HR', 'Project Manager']));
+// All HRMS routes require authentication + org isolation + Admin or HR role
+router.use(authenticate, organizationIsolation, requireRole(['admin', 'hr', 'manager']));
 
 // ─── Stats ───────────────────────────────────────────────────────────────────
 router.get('/stats', hrms.getHrmsStats);
+router.get('/dashboard', hrms.getHrmsStats);
 
 // ─── Employees ────────────────────────────────────────────────────────────────
 router.get('/employees', hrms.getEmployees);

@@ -32,7 +32,12 @@ exports.getMyAttendance = async (req, res) => {
 
     const { month } = req.query; // optional "2026-03"
     const filter = { employeeId: emp._id };
-    if (month) filter.date = { $regex: `^${month}` };
+    if (month) {
+      const [year, m] = month.split('-').map(Number);
+      const start = new Date(year, m - 1, 1);
+      const end = new Date(year, m, 1);
+      filter.date = { $gte: start, $lt: end };
+    }
 
     const records = await HrAttendance.find(filter).sort({ date: -1 }).limit(100).lean();
     return successResponse(res, 'Attendance fetched.', records);
@@ -109,20 +114,21 @@ exports.applyLeave = async (req, res) => {
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
-    const { leaveType, startDate, endDate, reason } = req.body;
-    if (!leaveType || !startDate || !endDate) {
-      return errorResponse(res, 'leaveType, startDate, and endDate are required.', 400);
+    const { leaveType, type, startDate, endDate, reason } = req.body;
+    const finalType = leaveType || type;
+    if (!finalType || !startDate || !endDate) {
+      return errorResponse(res, 'type, startDate, and endDate are required.', 400);
     }
 
     const leave = await Leave.create({
       organizationId: orgId,
       employeeId: emp._id,
       userId: req.user._id,
-      leaveType,
+      leaveType: finalType,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       reason: reason || '',
-      approvalStatus: 'Pending',
+      status: 'pending',
     });
     return successResponse(res, 'Leave application submitted.', leave, 201);
   } catch (err) {
@@ -138,33 +144,71 @@ exports.getMyStats = async (req, res) => {
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
     const now = new Date();
-    const monthStr = now.toISOString().slice(0, 7); // "YYYY-MM"
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-indexed
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 1);
+    console.log("Start:", start);
+    console.log("End:", end);
 
-    // Attendance this month
+    // 1. Get Present Days this month
     const monthAttendance = await HrAttendance.find({
       employeeId: emp._id,
-      date: { $regex: `^${monthStr}` },
+      date: { $gte: start, $lt: end },
+      checkIn: { $exists: true, $ne: null }
     }).lean();
 
-    const presentDays = monthAttendance.filter((a) => a.status === 'present' || a.checkIn).length;
+    const presentDays = monthAttendance.length;
 
-    // Get working days in month (approx days so far)
-    const dayOfMonth = now.getDate();
-    const attendancePct = dayOfMonth > 0 ? Math.round((presentDays / dayOfMonth) * 100) : 0;
+    // 2. Calculate Working Days (Total days so far this month - Holidays)
+    let workingDays = 0;
+    let holidays = 0;
+    const todayDate = now.getDate();
 
-    // Leaves this month
-    const monthLeaves = await Leave.find({
+    for (let d = 1; d <= todayDate; d++) {
+      const date = new Date(year, month, d);
+      const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
+
+      let isHoliday = false;
+      if (dayOfWeek === 0) {
+        isHoliday = true; // Sunday
+      } else if (dayOfWeek === 6) {
+        // Saturday logic: 2nd and 4th
+        const weekNum = Math.ceil(d / 7);
+        if (weekNum === 2 || weekNum === 4) {
+          isHoliday = true;
+        }
+      }
+
+      if (isHoliday) {
+        holidays++;
+      } else {
+        workingDays++;
+      }
+    }
+
+    const attendancePercentage = workingDays > 0 ? Math.round((presentDays / workingDays) * 100) : 0;
+
+    // 3. Leaves this month
+    const monthlyLeaves = await Leave.countDocuments({
       employeeId: emp._id,
-      startDate: { $gte: new Date(`${monthStr}-01`) },
-    }).lean();
+      $or: [
+        { startDate: { $lte: end }, endDate: { $gte: start } }
+      ],
+      status: 'approved'
+    });
 
-    const pendingLeaves = await Leave.countDocuments({ employeeId: emp._id, approvalStatus: 'Pending' });
+    const pendingRequests = await Leave.countDocuments({
+      employeeId: emp._id,
+      status: 'pending'
+    });
 
     return successResponse(res, 'Stats fetched.', {
-      totalLeavesThisMonth: monthLeaves.length,
-      pendingLeaves,
-      attendanceThisWeekPct: attendancePct,
       presentDays,
+      workingDays,
+      attendancePercentage,
+      monthlyLeaves,
+      pendingRequests
     });
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -178,33 +222,54 @@ exports.getMonthlyAttendanceChart = async (req, res) => {
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
-    // Last 6 months
-    const months = [];
     const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push(d.toISOString().slice(0, 7));
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    // Get all days in current month
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const chartData = [];
+
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 1);
+    const records = await HrAttendance.find({
+      employeeId: emp._id,
+      date: { $gte: start, $lt: end }
+    }).lean();
+
+    const recordMap = new Map(records.map(r => [new Date(r.date).toISOString().split('T')[0], r]));
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dateObj = new Date(year, month, d);
+      const dayOfWeek = dateObj.getDay();
+
+      let status = 'absent';
+      const record = recordMap.get(dateStr);
+
+      if (dayOfWeek === 0) {
+        status = 'holiday';
+      } else if (dayOfWeek === 6) {
+        const weekNum = Math.ceil(d / 7);
+        if (weekNum === 2 || weekNum === 4) {
+          status = 'holiday';
+        }
+      }
+
+      if (record && record.checkIn) {
+        status = 'present';
+      }
+
+      // If it's a holiday but they checked in, mark as present? Usually yes.
+      if (record && record.checkIn) status = 'present';
+
+      // If it's today and they haven't checked in yet, maybe don't mark as absent yet?
+      // But the requirement says "present" | "absent" | "holiday"
+
+      chartData.push({ date: dateStr, status });
     }
 
-    const data = await Promise.all(
-      months.map(async (m) => {
-        const records = await HrAttendance.find({
-          employeeId: emp._id,
-          date: { $regex: `^${m}` },
-        }).lean();
-        const present = records.filter((r) => r.checkIn).length;
-        // Days in that month
-        const [y, mo] = m.split('-').map(Number);
-        const daysInMonth = new Date(y, mo, 0).getDate();
-        return {
-          month: m,
-          presentDays: present,
-          percentage: daysInMonth > 0 ? Math.round((present / daysInMonth) * 100) : 0,
-        };
-      })
-    );
-
-    return successResponse(res, 'Monthly chart data fetched.', data);
+    return successResponse(res, 'Monthly chart data fetched.', chartData);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }

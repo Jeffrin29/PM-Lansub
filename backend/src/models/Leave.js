@@ -13,14 +13,13 @@ const leaveSchema = new mongoose.Schema(
       ref: 'HrEmployee',
       required: true,
     },
-    userId: {
+    user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      default: null,
+      required: true,
     },
     leaveType: {
       type: String,
-      enum: ['Sick Leave', 'Casual Leave', 'Annual Leave', 'Maternity Leave', 'Paternity Leave', 'Unpaid Leave', 'Other'],
       required: true,
     },
     startDate: {
@@ -35,30 +34,13 @@ const leaveSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
-    approvalStatus: {
+    status: {
       type: String,
-      enum: ['Pending', 'Approved', 'Rejected'],
-      default: 'Pending',
-    },
-    approvedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      default: null,
-    },
-    approvedAt: {
-      type: Date,
-      default: null,
-    },
-    rejectionReason: {
-      type: String,
-      default: null,
-    },
+      enum: ["Pending", "Approved", "Rejected"],
+      default: "Pending"
+    }
   },
   { timestamps: true }
 );
-
-leaveSchema.index({ organizationId: 1, approvalStatus: 1 });
-leaveSchema.index({ employeeId: 1 });
-leaveSchema.index({ userId: 1 });
 
 module.exports = mongoose.model('Leave', leaveSchema);
