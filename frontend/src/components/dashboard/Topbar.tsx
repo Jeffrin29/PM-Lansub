@@ -2,9 +2,11 @@
 import { FaSearch, FaBell, FaUserCircle } from "react-icons/fa";
 import ThemeToggle from "./ThemeToggle";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { attendanceApi } from "../../lib/api";
 
 export default function Topbar() {
+  const router = useRouter();
   const [attendance, setAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -114,9 +116,18 @@ export default function Topbar() {
         </div>
 
         <ThemeToggle />
-        <FaBell className="cursor-pointer" />
-        <FaUserCircle className="text-xl cursor-pointer" />
+        
+        <div className="relative cursor-pointer hover:scale-105 transition" onClick={() => router.push("/dashboard/notifications")}>
+          <FaBell className="text-gray-500 hover:text-white" />
+          <div className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border border-black" />
+        </div>
+
+        <FaUserCircle 
+          className="text-xl cursor-pointer hover:scale-105 transition text-gray-500 hover:text-white" 
+          onClick={() => router.push("/dashboard/profile")}
+        />
       </div>
     </div>
+
   );
 }

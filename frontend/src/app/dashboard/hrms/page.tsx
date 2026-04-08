@@ -58,17 +58,6 @@ function Badge({ status, type = 'status' }: { status: string; type?: 'status' | 
         absent: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
         late: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
     };
-    const router = useRouter();
-
-    useEffect(() => {
-        const authData = JSON.parse(localStorage.getItem("lansub-auth") || "{}");
-        const role = authData.user?.role;
-        const userRole = (typeof role === 'string' ? role : role?.name || '').toLowerCase();
-
-        if (!["admin", "hr", "manager"].includes(userRole)) {
-            router.push("/dashboard");
-        }
-    }, [router]);
 
     return (
         <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${mapping[status?.toLowerCase()] || mapping.inactive}`}>
@@ -151,6 +140,16 @@ export default function HRMSPage() {
         }
     }, [activeTab, search]);
 
+    const router = useRouter();
+
+    useEffect(() => {
+        const authData = JSON.parse(localStorage.getItem("lansub-auth") || "{}");
+        const roleStr = (typeof authData.user?.role === 'string' ? authData.user.role : authData.user?.role?.name || '').toLowerCase();
+        if (!["admin", "hr", "manager"].includes(roleStr)) {
+            router.push("/dashboard");
+        }
+    }, [router]);
+
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const handleLeaveAction = async (id: string, status: string) => {
@@ -213,7 +212,11 @@ export default function HRMSPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50 dark:divide-zinc-800">
-                                    {loading ? <tr><td colSpan={5} className="text-center py-10">Loading...</td></tr> : data.map((emp) => (
+                                    {loading ? (
+                                        <tr><td colSpan={6} className="text-center py-10">Loading...</td></tr>
+                                    ) : data.length === 0 ? (
+                                        <tr><td colSpan={6} className="text-center py-10 text-gray-500 italic">No employees found. Add employee to get started.</td></tr>
+                                    ) : data.map((emp) => (
                                         <tr key={emp._id} className="hover:bg-gray-50 dark:hover:bg-zinc-800/40">
                                             <td className="px-5 py-4 font-medium">{emp.name}</td>
                                             <td className="px-5 py-4 text-gray-500">{emp.email}</td>

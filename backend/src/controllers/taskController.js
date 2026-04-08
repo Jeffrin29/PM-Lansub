@@ -1,9 +1,9 @@
 const Task = require('../models/Task');
 const Project = require('../models/Project');
-const Notification = require('../models/Notification');
+const { logActivity } = require('../services/activityService');
+const { sendNotification } = require('../services/notificationService');
 const { successResponse, errorResponse, getPagination, paginatedResponse, getClientIp } = require('../utils/helpers');
 const { createAuditLog } = require('../utils/auditLog');
-const { logTaskActivity } = require('../utils/activityLogger');
 
 // ─── List Tasks ────────────────────────────────────────────────────────────────
 exports.getTasks = async (req, res, next) => {
@@ -168,22 +168,16 @@ exports.createTask = async (req, res, next) => {
       createdBy: req.user.userId,
     });
 
-    await logTaskActivity({ 
-      userId: req.user.userId, 
-      action: 'create', 
-      taskId: task._id,
-      description: `Task created: "${title}" by ${req.user.userId}`
-    });
+    await lastRecordTask(task, req, 'create', `Task created: "${title}"`);
 
     if (assignedTo && assignedTo !== req.user.userId) {
-      await Notification.create({
+      await sendNotification({
         userId: assignedTo,
         organizationId: req.user.organizationId,
-        message: `Task assigned: "${title}"`,
         title: 'Task Assigned',
+        message: `Task assigned: "${title}"`,
         type: 'task_assigned',
-        link: { entityType: 'task', entityId: task._id },
-        priority: priority === 'urgent' ? 'high' : 'normal',
+        link: { type: 'task', id: task._id }
       });
     }
 
@@ -261,20 +255,17 @@ exports.updateTask = async (req, res, next) => {
       meta.assignedTo = { from: before.assignedTo, to: task.assignedTo?.toString() };
     }
 
-    await logTaskActivity({ 
-      userId: req.user.userId, 
-      action: 'update', 
-      taskId: task._id,
-      description: `Task updated: "${task.title}"`,
-      metadata: meta
-    });
+    await lastRecordTask(task, req, 'update', `Task updated: "${task.title}"`, meta);
 
     // Notify new assignedTo
     if (req.body.assignedTo && req.body.assignedTo !== before.assignedTo && req.body.assignedTo !== req.user.userId) {
-      await Notification.create({
-        userId: req.body.assignedTo, organizationId: req.user.organizationId,
-        message: `Task assigned: "${task.title}"`, title: 'Task Assigned',
-        type: 'task_assigned', link: { entityType: 'task', entityId: task._id },
+      await sendNotification({
+        userId: req.body.assignedTo,
+        organizationId: req.user.organizationId,
+        title: 'Task Assigned',
+        message: `Task assigned: "${task.title}"`,
+        type: 'task_assigned',
+        link: { type: 'task', id: task._id }
       });
     }
 
@@ -318,12 +309,7 @@ exports.deleteTask = async (req, res, next) => {
 
     await task.deleteOne();
 
-    await logTaskActivity({ 
-      userId: req.user.userId, 
-      action: 'delete', 
-      taskId: task._id,
-      description: `Task deleted: "${task.title}"`
-    });
+    await lastRecordTask(task, req, 'delete', `Task deleted: "${task.title}"`);
 
     await createAuditLog({
       userId: req.user.userId, organizationId: req.user.organizationId,
@@ -377,3 +363,21 @@ exports.uploadAttachment = async (req, res, next) => {
     next(err);
   }
 };
+
+// ─── Internal Helper ──────────────────────────────────────────────────────────
+async function lastRecordTask(task, req, type, description, metadata = {}) {
+  try {
+    await logActivity({
+      userId: req.user.userId,
+      organizationId: req.user.organizationId,
+      action: `task:${type === 'create' ? 'created' : type === 'update' ? 'updated' : 'deleted'}`,
+      entityType: 'task',
+      entityId: task._id,
+      description: description,
+      metadata
+    });
+  } catch (e) {
+    console.error('Task Log Failed:', e);
+  }
+}
+

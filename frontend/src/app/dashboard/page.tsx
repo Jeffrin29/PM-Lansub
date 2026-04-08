@@ -198,13 +198,13 @@ export default function Dashboard() {
           activityApi.recent(8),
         ]);
 
-      if (sumRes.status === "fulfilled") setSummary((sumRes.value as any).data || null);
-      if (healthRes.status === "fulfilled") setHealth((healthRes.value as any).data || null);
-      if (taRes.status === "fulfilled") setTaskAnalytics((taRes.value as any).data || []);
-      if (ppRes.status === "fulfilled") setProjectProgress((ppRes.value as any).data || []);
-      if (wlRes.status === "fulfilled") setWorkload((wlRes.value as any).data || []);
-      if (costRes.status === "fulfilled") setCostData((costRes.value as any).data || []);
-      if (actRes.status === "fulfilled") setActivity((actRes.value as any).data || []);
+      if (sumRes.status === "fulfilled") setSummary((sumRes.value as any)?.data || null);
+      if (healthRes.status === "fulfilled") setHealth((healthRes.value as any)?.data || null);
+      if (taRes.status === "fulfilled") setTaskAnalytics((taRes.value as any)?.data || []);
+      if (ppRes.status === "fulfilled") setProjectProgress((ppRes.value as any)?.data || []);
+      if (wlRes.status === "fulfilled") setWorkload((wlRes.value as any)?.data || []);
+      if (costRes.status === "fulfilled") setCostData((costRes.value as any)?.data || []);
+      if (actRes.status === "fulfilled") setActivity((actRes.value as any)?.data || []);
     } finally {
       setLoading(false);
     }

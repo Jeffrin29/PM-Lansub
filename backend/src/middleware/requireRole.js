@@ -18,14 +18,12 @@ const requireRole = (roles = []) => {
       return errorResponse(res, 'Authentication required.', 401);
     }
 
-    const userRole = (typeof req.user.role === 'string' ? req.user.role : '').toLowerCase();
+    const role = (req.user?.role || '').toLowerCase();
 
-    if (!roles.map(r => r.toLowerCase()).includes(userRole)) {
-      return errorResponse(
-        res,
-        `Access denied. Required role(s): ${roles.join(", ")}`,
-        403
-      );
+    if (!roles.map(r => r.toLowerCase()).includes(role)) {
+      return res.status(403).json({
+        message: `Access denied. Required role(s): ${roles.join(", ")}`
+      });
     }
 
     next();

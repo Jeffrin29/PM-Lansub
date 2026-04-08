@@ -92,6 +92,23 @@ const userSchema = new mongoose.Schema(
       enum: ['admin', 'hr', 'manager', 'employee'],
       default: 'employee',
     },
+    // ✅ NEW PROFILE FIELDS
+    employeeId: { type: String, unique: true, sparse: true },
+    birthday: { type: Date },
+    gender: { type: String, enum: ['Male', 'Female', 'Other'] },
+    address: { type: String },
+    emergencyContact: {
+      name: { type: String },
+      relation: { type: String },
+      phone: { type: String },
+    },
+    department: { type: String },
+    joiningDate: { type: Date },
+    manager: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    workLocation: { type: String },
+    employmentType: { type: String, enum: ['Full-time', 'Part-time', 'Contract', 'Intern'] },
+    profileImage: { type: String },
+    skills: [{ type: String }],
     preferences: {
       notifications: { type: Boolean, default: true },
       emailAlerts: { type: Boolean, default: true },

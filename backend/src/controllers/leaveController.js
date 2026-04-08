@@ -1,6 +1,8 @@
 'use strict';
 const HrEmployee = require('../models/HrEmployee');
 const Leave = require('../models/Leave');
+const { logActivity } = require('../services/activityService');
+const { sendNotification } = require('../services/notificationService');
 const { errorResponse, successResponse } = require('../utils/helpers');
 
 // Helper: find the HR employee record that belongs to the logged-in user
@@ -32,6 +34,28 @@ exports.applyLeave = async (req, res) => {
     });
 
     console.log("Leaves:", leave); // Debug as requested
+
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user._id,
+      organizationId: orgId,
+      action: 'leave:applied',
+      entityType: 'leave',
+      entityId: leave._id,
+      description: `Leave applied: ${leaveType} (${startDate} to ${endDate})`
+    });
+
+    // ✅ TRIGGER NOTIFICATION (For HR/Admin)
+    // Simplified for demo: notifying the app's current user for visibility
+    await sendNotification({
+      userId: req.user._id, 
+      organizationId: orgId,
+      title: 'Leave Request Submitted',
+      message: `Your ${leaveType} leave request has been submitted for review.`,
+      type: 'system',
+      link: { type: 'leave', id: leave._id }
+    });
+
     return successResponse(res, leave, 'Leave application submitted.', 201);
   } catch (err) {
     return errorResponse(res, err.message, 500);

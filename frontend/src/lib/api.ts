@@ -53,7 +53,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   const json = await res.json();
-  if (!res.ok) throw new Error(json.message || `Request failed (${res.status})`);
+  if (!res.ok) {
+    console.error("API Error:", json.message);
+    return null as any;
+  }
   return json;
 }
 
@@ -138,7 +141,15 @@ export const discussionsApi = {
     api.post<any>(`/discussions/${id}/comments`, { content }),
 };
 
-// Users / Admin
+// Users / Profile
+export const userApi = {
+  getMe: () => api.get<any>('/users/me'),
+  updateProfile: (body: unknown) => api.put<any>('/users/update', body),
+  changePassword: (body: unknown) => api.put<any>('/users/change-password', body),
+  getAll: (params = '') => api.get<any>(`/users?limit=100${params}`),
+};
+
+// Admin
 export const adminApi = {
   getUsers: (params = '') => api.get<any>(`/admin/users?limit=100${params}`),
   createUser: (body: unknown) => api.post<any>('/admin/users', body),
@@ -170,11 +181,11 @@ export const hrmsApi = {
   updateDepartment: (id: string, body: unknown) => api.put<any>(`/hrms/departments/${id}`, body),
   deleteDepartment: (id: string) => api.delete<any>(`/hrms/departments/${id}`),
   // Attendance & Leaves (Admin)
-  getAttendance: (params = '') => api.get<any>(`/attendance/all?${params}`),
-  getLeaves: (params = '') => api.get<any>(`/leaves?${params}`),
-  approveLeave: (id: string) => api.patch<any>(`/leaves/${id}/approve`, {}),
-  rejectLeave: (id: string) => api.patch<any>(`/leaves/${id}/reject`, {}),
-  updateLeaveStatus: (id: string, body: unknown) => api.put<any>(`/leaves/${id}`, body),
+  getAttendance: (params = '') => api.get<any>(`/hrms/attendance?${params}`),
+  getLeaves: (params = '') => api.get<any>(`/hrms/leaves?${params}`),
+  approveLeave: (id: string) => api.patch<any>(`/hrms/leaves/${id}/approve`, {}),
+  rejectLeave: (id: string) => api.patch<any>(`/hrms/leaves/${id}/reject`, {}),
+  updateLeaveStatus: (id: string, body: unknown) => api.put<any>(`/hrms/leaves/${id}/status`, body),
 };
 
 // Attendance Service (Employee)

@@ -12,7 +12,7 @@ const buildTokens = (user) => {
     id: user._id.toString(),
     userId: user._id.toString(),
     email: user.email,
-    role: (typeof user.role === 'string' ? user.role.toLowerCase() : 'employee'),
+    role: (user.role || 'employee').toLowerCase(),
     organizationId: user.organizationId.toString(),
   };
 
@@ -232,7 +232,7 @@ exports.login = async (req, res, next) => {
         name: user.name,
         email: user.email,
         organizationId: user.organizationId,
-        role: user.roleId,
+        role: (user.role || 'employee').toLowerCase(),
         status: user.status,
         lastLogin: user.lastLogin,
       },

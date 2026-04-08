@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
 const User = require('../models/User');
+const Comment = require('../models/Comment');
 const Discussion = require('../models/Discussion');
 const { successResponse, errorResponse } = require('../utils/helpers');
 
@@ -12,14 +13,14 @@ exports.getOverview = async (req, res) => {
     const orgId = new mongoose.Types.ObjectId(organizationId);
 
     // 1. Fetch data with org isolation
-    const [projects, tasks, users, discussions] = await Promise.all([
+    const [projects, tasks, users, comments] = await Promise.all([
       Project.find({ organizationId: orgId }).limit(6),
       Task.find({ organizationId: orgId }),
       User.find({ organizationId: orgId }).select('name email role status'),
-      Discussion.find({ organizationId: orgId })
-        .sort({ updatedAt: -1 })
+      Comment.find({ organizationId: orgId })
+        .populate('user', 'name email')
+        .sort({ createdAt: -1 })
         .limit(5)
-        .populate('comments.user', 'name')
     ]);
 
     // 2. Urgent tasks (overdue + not completed)
@@ -47,24 +48,13 @@ exports.getOverview = async (req, res) => {
       };
     });
 
-    // 4. Extract latest comments
-    const comments = [];
-    discussions.forEach(d => {
-      d.comments.forEach(c => {
-        comments.push({
-          id: c._id,
-          topic: d.topic,
-          comment: {
-            author: { name: c.user?.name || 'Unknown' },
-            content: c.text,
-            createdAt: c.createdAt
-          }
-        });
-      });
-    });
-    const finalComments = comments
-      .sort((a, b) => new Date(b.comment.createdAt) - new Date(a.comment.createdAt))
-      .slice(0, 5);
+    // 4. Global Comments (mapped for frontend)
+    const finalComments = comments.map(c => ({
+      id: c._id,
+      user: c.user?.name || 'Unknown',
+      text: c.text,
+      time: c.createdAt
+    }));
 
     // 5. Stats
     const stats = {

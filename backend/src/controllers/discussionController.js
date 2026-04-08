@@ -1,5 +1,8 @@
 'use strict';
 const Discussion = require('../models/Discussion');
+const Comment = require('../models/Comment');
+const { logActivity } = require('../services/activityService');
+const { sendNotification } = require('../services/notificationService');
 const { successResponse, errorResponse, getPagination, paginatedResponse } = require('../utils/helpers');
 
 // GET /api/discussions
@@ -37,7 +40,7 @@ const getDiscussions = async (req, res) => {
 const createDiscussion = async (req, res) => {
   try {
     const { organizationId } = req.user;
-    const { topic, projectId, description, tags } = req.body;
+    const { topic, projectId, description, tags, meetingLink } = req.body;
 
     const discussion = await Discussion.create({
       topic,
@@ -47,7 +50,31 @@ const createDiscussion = async (req, res) => {
       description: description || '',
       tags: tags || [],
       createdBy: req.user._id,
+      meetingLink: meetingLink || "", // ✅ include this
     });
+
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user._id,
+      organizationId,
+      action: 'discussion:created',
+      entityType: 'discussion',
+      entityId: discussion._id,
+      metadata: { topic: discussion.topic }
+    });
+
+    // ✅ TRIGGER NOTIFICATION (If meeting link exists)
+    if (meetingLink) {
+      // In a real app, notify project members. For demo, notify all org members (simplified)
+      await sendNotification({
+        userId: req.user._id, // Ideally recipients
+        organizationId,
+        title: 'New Meeting Scheduled',
+        message: `A meeting was scheduled for topic: ${topic}`,
+        type: 'meeting',
+        link: { type: 'project', id: projectId, url: meetingLink }
+      });
+    }
 
     return successResponse(res, discussion, 'Discussion created', 201);
   } catch (err) {
@@ -88,6 +115,35 @@ const addComment = async (req, res) => {
     });
     discussion.lastActivityAt = new Date();
     await discussion.save();
+
+    // Create in global Comment collection (For Overview Dashboard)
+    await Comment.create({
+      text: content,
+      user: req.user._id,
+      projectId: discussion.projectId,
+      organizationId: organizationId
+    });
+
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user._id,
+      organizationId,
+      action: 'discussion:replied',
+      entityType: 'discussion',
+      entityId: discussion._id,
+    });
+
+    // ✅ TRIGGER NOTIFICATION (Notify the author of the discussion)
+    if (discussion.author.toString() !== req.user._id.toString()) {
+      await sendNotification({
+        userId: discussion.author,
+        organizationId,
+        title: 'New Reply Received',
+        message: `${req.user.name} replied to your discussion: ${discussion.topic}`,
+        type: 'discussion_replied',
+        link: { type: 'discussion', id: discussion._id }
+      });
+    }
 
     await discussion.populate('comments.author', 'name email');
     const newComment = discussion.comments[discussion.comments.length - 1];

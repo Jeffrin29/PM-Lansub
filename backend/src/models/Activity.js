@@ -35,6 +35,12 @@ const activitySchema = new mongoose.Schema(
         'discussion:replied',
         'user:invited',
         'user:role_changed',
+        'attendance:check-in',
+        'attendance:check-out',
+        'leave:applied',
+        'leave:approved',
+        'leave:rejected',
+        'employee:added',
       ],
     },
     entityType: {

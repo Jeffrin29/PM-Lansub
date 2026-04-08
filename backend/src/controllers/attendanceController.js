@@ -3,6 +3,7 @@
 const Attendance = require('../models/Attendance');
 const HrEmployee = require('../models/HrEmployee');
 const Leave = require('../models/Leave');
+const { logActivity } = require('../services/activityService');
 const { successResponse, errorResponse } = require('../utils/helpers');
 const { enforceAutoLogout } = require('../utils/attendanceHelper');
 
@@ -50,6 +51,17 @@ exports.checkIn = async (req, res) => {
         });
 
         console.log("Attendance:", record);
+
+        // ✅ LOG ACTIVITY
+        await logActivity({
+            userId: req.user._id,
+            organizationId,
+            action: 'attendance:check-in',
+            entityType: 'attendance',
+            entityId: record._id,
+            description: `Attendance check-in at ${now.toLocaleTimeString()}`
+        });
+
         return successResponse(res, record, 'Checked in successfully');
     } catch (err) {
         return errorResponse(res, err.message, 500);
@@ -92,6 +104,17 @@ exports.checkOut = async (req, res) => {
 
         await record.save();
         console.log("Attendance:", record);
+
+        // ✅ LOG ACTIVITY
+        await logActivity({
+            userId: req.user._id,
+            organizationId: record.organizationId,
+            action: 'attendance:check-out',
+            entityType: 'attendance',
+            entityId: record._id,
+            description: `Attendance check-out at ${now.toLocaleTimeString()}`
+        });
+
         return successResponse(res, record, 'Checked out successfully');
     } catch (err) {
         return errorResponse(res, err.message, 500);

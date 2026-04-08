@@ -346,13 +346,13 @@ export default function OverviewPage() {
               <div className="space-y-3">
                 {data.comments.map((c: any, i: number) => (
                   <div key={i} className="flex gap-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl">
-                    <Avatar name={c.comment.author?.name || "?"} size={8} />
+                    <Avatar name={c.user || "?"} size={8} />
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5 uppercase font-black tracking-tighter">
-                        {c.comment.author?.name} · {c.topic}
+                        {c.user} · Latest Activity
                       </p>
                       <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                        {c.comment.content}
+                        {c.text}
                       </p>
                     </div>
                   </div>

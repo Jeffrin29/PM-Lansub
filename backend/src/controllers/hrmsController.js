@@ -4,6 +4,8 @@ const HrEmployee = require('../models/HrEmployee');
 const Department = require('../models/Department');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
+const { logActivity } = require('../services/activityService');
+const { sendNotification } = require('../services/notificationService');
 const { errorResponse, successResponse } = require('../utils/helpers');
 const { enforceAutoLogout } = require('../utils/attendanceHelper');
 
@@ -90,6 +92,16 @@ exports.createEmployee = async (req, res) => {
       status: status || 'active',
       joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
       phone: phone || null,
+    });
+
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user._id,
+      organizationId: orgId,
+      action: 'employee:added',
+      entityType: 'user',
+      entityId: user._id,
+      description: `New employee added: ${name}`
     });
 
     return successResponse(res, { employee, userId: user._id }, 'Employee and User created.', 201);
@@ -244,6 +256,27 @@ exports.updateLeaveStatus = async (req, res) => {
       { new: true }
     ).populate('user', 'name email');
     if (!leave) return errorResponse(res, 'Leave request not found.', 404);
+
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user._id,
+      organizationId: orgId,
+      action: `leave:${normalizedStatus.toLowerCase()}`,
+      entityType: 'leave',
+      entityId: leave._id,
+      description: `Leave ${normalizedStatus} for user: ${leave.user?.name}`
+    });
+
+    // ✅ TRIGGER NOTIFICATION
+    await sendNotification({
+      userId: leave.user._id,
+      organizationId: orgId,
+      title: `Leave ${normalizedStatus}`,
+      message: `Your leave request for ${leave.leaveType} has been ${normalizedStatus.toLowerCase()}.`,
+      type: normalizedStatus === 'Approved' ? 'leave_approved' : 'leave_rejected',
+      link: { type: 'leave', id: leave._id }
+    });
+
     return successResponse(res, `Leave ${normalizedStatus}.`, leave);
   } catch (err) {
     return errorResponse(res, err.message, 500);

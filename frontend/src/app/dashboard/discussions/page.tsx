@@ -16,6 +16,7 @@ interface Discussion {
   isClosed: boolean;
   createdAt: string;
   tags: string[];
+  meetingLink?: string;
 }
 
 interface Comment {
@@ -53,9 +54,9 @@ function NewDiscussionModal({
   onSave,
 }: {
   onClose: () => void;
-  onSave: (data: { topic: string; description: string; tags: string }) => Promise<void>;
+  onSave: (data: { topic: string; description: string; tags: string; meetingLink?: string }) => Promise<void>;
 }) {
-  const [form,   setForm]   = useState({ topic: "", description: "", tags: "" });
+  const [form,   setForm]   = useState({ topic: "", description: "", tags: "", meetingLink: "" });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState("");
 
@@ -109,6 +110,16 @@ function NewDiscussionModal({
               placeholder="design, frontend, api"
               value={form.tags}
               onChange={(e) => setForm({ ...form, tags: e.target.value })}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Link (optional)</label>
+            <input
+              type="url"
+              placeholder="Google Meet / Zoom Link"
+              value={form.meetingLink}
+              onChange={(e) => setForm({ ...form, meetingLink: e.target.value })}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -168,6 +179,18 @@ function ThreadView({
         {discussion.description && (
           <div className="px-5 py-4 bg-gray-50 dark:bg-zinc-800/50 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-100 dark:border-zinc-800">
             {discussion.description}
+            {discussion.meetingLink && (
+              <div className="mt-3">
+                <a 
+                  href={discussion.meetingLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition"
+                >
+                  📹 Join Meeting
+                </a>
+              </div>
+            )}
           </div>
         )}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -235,9 +258,9 @@ export default function DiscussionsPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  async function handleCreate(data: { topic: string; description: string; tags: string }) {
+  async function handleCreate(data: { topic: string; description: string; tags: string; meetingLink?: string }) {
     const tags = data.tags.split(",").map((t) => t.trim()).filter(Boolean);
-    await discussionsApi.create({ ...data, tags });
+    await discussionsApi.create({ ...data, tags, meetingLink: data.meetingLink || "" });
     await fetchAll();
   }
 
@@ -296,6 +319,7 @@ export default function DiscussionsPage() {
             <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
               <th className="px-6 py-4 font-semibold">Topic</th>
               <th className="px-6 py-4 font-semibold">Project</th>
+              <th className="px-6 py-4 font-semibold">Meeting Link</th>
               <th className="px-6 py-4 font-semibold">Author</th>
               <th className="px-6 py-4 font-semibold text-center">Replies</th>
               <th className="px-6 py-4 font-semibold">Last Activity</th>
@@ -305,7 +329,7 @@ export default function DiscussionsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="text-center py-12 text-gray-400">
+                <td colSpan={7} className="text-center py-12 text-gray-400">
                   <div className="flex items-center justify-center gap-2">
                     <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -317,7 +341,7 @@ export default function DiscussionsPage() {
               </tr>
             ) : discussions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-16 text-gray-400">
+                <td colSpan={7} className="text-center py-16 text-gray-400">
                   <span className="text-3xl block mb-2">💬</span>
                   No discussions yet. Start a new one!
                 </td>
@@ -339,11 +363,27 @@ export default function DiscussionsPage() {
                           </span>
                         ))}
                       </div>
+                      {d.meetingLink && (
+                        <div className="flex items-center gap-1 mt-2">
+                          <span className="text-[10px] bg-green-500/10 text-green-500 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter flex items-center gap-1 border border-green-500/20">
+                            📹 Live Meeting Call
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </td>
                 <td className="px-6 py-4 text-gray-500 dark:text-gray-400">
                   {d.projectId?.projectTitle || <span className="text-gray-300 dark:text-gray-600">—</span>}
+                </td>
+                <td className="px-6 py-4 text-sm text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                  {d.meetingLink ? (
+                    <a href={d.meetingLink} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                      Join Meeting
+                    </a>
+                  ) : (
+                    <span className="text-gray-400 dark:text-gray-500">No link</span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-2">

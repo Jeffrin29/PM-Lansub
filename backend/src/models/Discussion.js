@@ -56,6 +56,7 @@ const discussionSchema = new mongoose.Schema(
       default: '',
     },
     tags: [{ type: String, trim: true, lowercase: true }],
+    meetingLink: { type: String, default: "" },
     isPinned: { type: Boolean, default: false },
     isClosed: { type: Boolean, default: false },
     comments: [commentSchema],

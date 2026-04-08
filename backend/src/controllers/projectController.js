@@ -1,5 +1,6 @@
 const Project = require('../models/Project');
-const Notification = require('../models/Notification');
+const { logActivity } = require('../services/activityService');
+const { sendNotification } = require('../services/notificationService');
 const { successResponse, errorResponse, getPagination, paginatedResponse, getClientIp } = require('../utils/helpers');
 const { createAuditLog } = require('../utils/auditLog');
 const path = require('path');
@@ -91,17 +92,28 @@ exports.createProject = async (req, res, next) => {
       createdBy: req.user.userId,
     });
 
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user.userId,
+      organizationId: req.user.organizationId,
+      action: 'project:created',
+      entityType: 'project',
+      entityId: project._id,
+      description: `Project created: "${projectTitle}"`
+    });
+
     // Notify team members
     if (teamMembers && teamMembers.length > 0) {
-      const notifications = teamMembers.map((member) => ({
-        userId: member.userId,
-        organizationId: req.user.organizationId,
-        message: `You have been added to project: "${projectTitle}"`,
-        title: 'Added to Project',
-        type: 'project_created',
-        link: { entityType: 'project', entityId: project._id },
-      }));
-      await Notification.insertMany(notifications);
+      for (const member of teamMembers) {
+        await sendNotification({
+          userId: member.userId,
+          organizationId: req.user.organizationId,
+          title: 'Added to Project',
+          message: `You have been added to project: "${projectTitle}"`,
+          type: 'project_created',
+          link: { type: 'project', id: project._id }
+        });
+      }
     }
 
     await createAuditLog({
@@ -148,6 +160,16 @@ exports.updateProject = async (req, res, next) => {
 
     await project.save();
 
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user.userId,
+      organizationId: req.user.organizationId,
+      action: 'project:updated',
+      entityType: 'project',
+      entityId: project._id,
+      description: `Project updated: "${project.projectTitle}"`
+    });
+
     await createAuditLog({
       userId: req.user.userId,
       organizationId: req.user.organizationId,
@@ -179,6 +201,16 @@ exports.deleteProject = async (req, res, next) => {
     }
 
     await project.deleteOne();
+
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user.userId,
+      organizationId: req.user.organizationId,
+      action: 'project:deleted',
+      entityType: 'project',
+      entityId: project._id,
+      description: `Project deleted: "${project.projectTitle}"`
+    });
 
     await createAuditLog({
       userId: req.user.userId,

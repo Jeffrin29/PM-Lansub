@@ -32,7 +32,8 @@ const NAV_ITEMS = [
   { href: "/dashboard/hrms", label: "HRMS", Icon: FaUsers },
   { href: "/dashboard/discussions", label: "Discussions", Icon: FaComments },
   { href: "/dashboard/reports", label: "Reports", Icon: FaFileAlt },
-  { href: "/dashboard/notif", label: "Notifications", Icon: FaBell },
+  { href: "/dashboard/notifications", label: "Notifications", Icon: FaBell },
+  { href: "/dashboard/profile", label: "Profile", Icon: FaUserShield },
   { href: "/dashboard/ai", label: "AI Assistant", Icon: FaRobot },
 ];
 
@@ -60,7 +61,7 @@ export default function Sidebar() {
     <div className="w-64 h-screen flex flex-col bg-white dark:bg-black border-r border-gray-200 dark:border-zinc-800 text-black dark:text-white p-6">
       <h1 className="text-xl font-semibold mb-10">LANSUB</h1>
 
-      <nav className="space-y-1.5 flex-1 overflow-y-auto">
+      <nav className="space-y-1.5 flex-1 overflow-y-auto scrollbar-hide">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href;
           return (

@@ -31,6 +31,8 @@ router.get('/attendance', hrms.getAttendance);
 
 // ─── Leaves (admin view) ──────────────────────────────────────────────────────
 router.get('/leaves', hrms.getLeaves);
+router.patch('/leaves/:id/approve', hrms.approveLeave);
+router.patch('/leaves/:id/reject', hrms.rejectLeave);
 router.put('/leaves/:id/status', hrms.updateLeaveStatus);
 
 module.exports = router;

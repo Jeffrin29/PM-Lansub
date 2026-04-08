@@ -11,6 +11,11 @@ const { createUserValidation, updateUserValidation } = require('../middleware/va
 // All user routes require authentication + org isolation
 router.use(authenticate, organizationIsolation);
 
+// ─── Profile Routes ──────────────────────────────────────────────────────────
+router.get('/me', userController.getMe);
+router.put('/update', userController.updateMe);
+router.put('/change-password', userController.changePassword);
+
 // ─── GET /api/users — list users (org-scoped) ─────────────────────────────────
 router.get('/', userController.getUsers);
 
