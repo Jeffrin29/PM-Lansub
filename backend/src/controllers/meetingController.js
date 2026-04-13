@@ -26,9 +26,9 @@ exports.createMeeting = async (req, res) => {
   try {
     const orgId = req.user.organizationId;
 
-    // Role Check: Only Admin can create
-    const roleName = (req.user?.role?.name || '').toLowerCase();
-    if (!['admin', 'org_admin', 'super_admin'].includes(roleName)) {
+    // Role Check: Only Admin or Project Manager can create meetings
+    const roleName = (req.user?.role || '').toLowerCase();
+    if (!['admin', 'hr', 'project_manager'].includes(roleName)) {
       return errorResponse(res, 'Only administrators can schedule meetings.', 403);
     }
 

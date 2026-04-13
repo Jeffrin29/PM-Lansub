@@ -1,8 +1,8 @@
 module.exports = {
   jwt: {
-    accessSecret: process.env.JWT_ACCESS_SECRET || 'fallback-access-secret-change-in-prod',
-    refreshSecret: process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret-change-in-prod',
-    accessExpires: process.env.JWT_ACCESS_EXPIRES || '15m',
+    accessSecret: process.env.JWT_SECRET || 'secret',
+    refreshSecret: process.env.JWT_SECRET || 'secret',
+    accessExpires: process.env.JWT_ACCESS_EXPIRES || '1d',
     refreshExpires: process.env.JWT_REFRESH_EXPIRES || '7d',
   },
   bcrypt: {

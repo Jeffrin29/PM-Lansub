@@ -8,7 +8,8 @@ const { errorResponse, successResponse } = require('../utils/helpers');
 // Helper: find the HR employee record that belongs to the logged-in user
 const getMyEmployee = async (req) => {
   const orgId = req.user?.organizationId;
-  return HrEmployee.findOne({ organizationId: orgId, userId: req.user._id }).lean();
+  const userId = req.user?.userId || req.user?._id;
+  return HrEmployee.findOne({ organizationId: orgId, userId }).lean();
 };
 
 // ─── My Profile ───────────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ exports.checkIn = async (req, res) => {
       record = await HrAttendance.create({
         organizationId: orgId,
         employeeId: emp._id,
-        userId: req.user._id,
+        userId: req.user.userId || req.user._id,
         date: today,
         checkIn: new Date(),
         status: 'present',
@@ -123,7 +124,7 @@ exports.applyLeave = async (req, res) => {
     const leave = await Leave.create({
       organizationId: orgId,
       employeeId: emp._id,
-      userId: req.user._id,
+      userId: req.user.userId || req.user._id,
       leaveType: finalType,
       startDate: new Date(startDate),
       endDate: new Date(endDate),

@@ -62,18 +62,16 @@ function normaliseTask(raw: any, idx: number): Task {
 function getCurrentUser() {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem("lansub-auth");
+    const raw = localStorage.getItem("user");
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const user = parsed?.user || parsed; // sometimes user is the root object
-    return user && typeof user === 'object' ? user : null;
+    return JSON.parse(raw);
   } catch { return null; }
 }
 
 export default function TasksPage() {
   const [currentUser] = useState(() => getCurrentUser());
-  const currentUserId = currentUser?._id || currentUser?.id;
-  const userRole = (currentUser?.role?.name || currentUser?.role || "employee").toString().toLowerCase();
+  const currentUserId = currentUser?.id || currentUser?._id || "";
+  const userRole = (currentUser?.role?.name || currentUser?.role || "employee")?.toString().toLowerCase();
   const isPrivileged = ["admin", "hr", "project_manager"].includes(userRole);
 
   const [taskView, setTaskView] = useState<TaskView>("Kanban");

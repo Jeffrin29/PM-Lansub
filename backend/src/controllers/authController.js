@@ -2,26 +2,43 @@ const User = require('../models/User');
 const Organization = require('../models/Organization');
 const Role = require('../models/Role');
 const Session = require('../models/Session');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { signAccessToken, signRefreshToken, verifyRefreshToken, getRefreshTokenExpiry } = require('../utils/jwt');
 const { successResponse, errorResponse, getClientIp, parseUserAgent, generateToken } = require('../utils/helpers');
 const { createAuditLog } = require('../utils/auditLog');
 
-// ─── Helper: build auth response payload ────────────────────────────────────────
-const buildTokens = (user) => {
-  const payload = {
-    id: user._id.toString(),
-    userId: user._id.toString(),
-    email: user.email,
-    role: (user.role || 'employee').toLowerCase(),
-    organizationId: user.organizationId.toString(),
-  };
+// ─── Helper: resolve canonical role name ────────────────────────────────────────
+const resolveRole = (user) => {
+  if (user.roleId && typeof user.roleId === 'object' && user.roleId.name) {
+    const raw = user.roleId.name.toLowerCase();
+    return (raw === 'org_admin' || raw === 'super_admin') ? 'admin' : raw;
+  }
 
-  return {
-    accessToken: signAccessToken(payload),
-    refreshToken: signRefreshToken(payload),
-  };
+  const legacyRole = (user.role || 'employee').toLowerCase();
+  return (legacyRole === 'org_admin' || legacyRole === 'super_admin') ? 'admin' : legacyRole;
 };
 
+// ─── Helper: build auth response payload ────────────────────────────────────────
+const buildTokens = (user) => {
+  if (!user || !user._id) {
+    throw new Error("Invalid user");
+  }
+
+  if (!user.roleId || !user.roleId.name) {
+    throw new Error("Missing role");
+  }
+
+  const payload = {
+    userId: user._id.toString(),
+    role: user.roleId.name.toLowerCase(),
+    organizationId: user.organizationId ? user.organizationId.toString() : null
+  };
+
+  console.log("Building Token Payload:", payload);
+
+  return jwt.sign(payload, process.env.JWT_SECRET || "secret");
+};
 // ─── Register ─────────────────────────────────────────────────────────────────
 exports.register = async (req, res, next) => {
   try {
@@ -87,19 +104,18 @@ exports.register = async (req, res, next) => {
       await org.save();
     }
 
-    const { accessToken, refreshToken } = buildTokens(user);
+    // Get populated user for tokens
+    const populatedUser = await User.findById(user._id).populate('roleId');
+    const token = buildTokens(populatedUser);
+
     const ip = getClientIp(req);
     const { device, browser, os } = parseUserAgent(req.headers['user-agent']);
-    const expiresAt = getRefreshTokenExpiry();
 
-    // Store refresh token on user
-    const freshUser = await User.findById(user._id).select('+refreshTokens');
-    freshUser.addRefreshToken(refreshToken, device, expiresAt);
-    freshUser.lastLogin = new Date();
-    freshUser.lastLoginIp = ip;
-    await freshUser.save();
+    populatedUser.lastLogin = new Date();
+    populatedUser.lastLoginIp = ip;
+    await populatedUser.save();
 
-    // Create session
+    // Create session (optional if refresh tokens are being removed, but keeping for compatibility)
     await Session.create({
       userId: user._id,
       organizationId: org._id,
@@ -110,7 +126,6 @@ exports.register = async (req, res, next) => {
       userAgent: req.headers['user-agent'],
       loginTime: new Date(),
       lastActiveAt: new Date(),
-      refreshToken,
       active: true,
     });
 
@@ -125,120 +140,93 @@ exports.register = async (req, res, next) => {
       userAgent: req.headers['user-agent'],
     });
 
-    return successResponse(
-      res,
-      {
-        accessToken,
-        refreshToken,
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          organizationId: org._id,
-          roleId: adminRole._id,
-          status: user.status,
-        },
-        organization: { _id: org._id, name: org.name, plan: org.plan },
-      },
-      'Registration successful.',
-      201
-    );
+    return res.status(201).json({
+      token,
+      user: {
+        id: populatedUser._id,
+        email: populatedUser.email,
+        role: populatedUser.roleId.name
+      }
+    });
   } catch (err) {
     next(err);
   }
 };
 
 // ─── Login ────────────────────────────────────────────────────────────────────
-exports.login = async (req, res, next) => {
+exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    const ip = getClientIp(req);
 
+    console.log("Login attempt:", email);
+
+    // IMPORTANT: select +passwordHash to allow bcrypt comparison
     const user = await User.findOne({ email })
-      .select('+passwordHash +refreshTokens')
-      .populate('roleId', 'name displayName level isSystemRole');
+      .select("+passwordHash")
+      .populate("roleId");
 
     if (!user) {
-      await createAuditLog({
-        action: 'LOGIN_FAILED',
-        entityType: 'auth',
-        description: `Failed login attempt for email: ${email}`,
-        ipAddress: ip,
-        userAgent: req.headers['user-agent'],
-        status: 'failure',
-      });
-      return errorResponse(res, 'Invalid email or password.', 401);
+      console.log("User not found:", email);
+      return res.status(401).json({ message: "Invalid email" });
     }
 
-    const isMatch = await user.comparePassword(password);
+    if (!user.passwordHash) {
+      console.error("Missing passwordHash for user:", email);
+      return res.status(500).json({ message: "Password not set" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+
     if (!isMatch) {
-      await createAuditLog({
-        userId: user._id,
-        organizationId: user.organizationId,
-        action: 'LOGIN_FAILED',
-        entityType: 'auth',
-        entityId: user._id,
-        description: `Incorrect password for: ${email}`,
-        ipAddress: ip,
-        userAgent: req.headers['user-agent'],
-        status: 'failure',
-      });
-      return errorResponse(res, 'Invalid email or password.', 401);
+      console.log("Password mismatch for user:", email);
+      return res.status(401).json({ message: "Invalid password" });
     }
 
-    if (user.status !== 'active') {
-      return errorResponse(res, `Account is ${user.status}. Contact your administrator.`, 403);
+    if (!user.roleId) {
+      console.error("User roleId missing:", email);
+      return res.status(500).json({ message: "User role missing" });
     }
 
-    const { accessToken, refreshToken } = buildTokens(user);
-    const { device, browser, os } = parseUserAgent(req.headers['user-agent']);
-    const expiresAt = getRefreshTokenExpiry();
+    if (!user.roleId.name) {
+      console.error("Role name missing for user:", email);
+      return res.status(500).json({ message: "Role name missing" });
+    }
 
-    user.addRefreshToken(refreshToken, device, expiresAt);
-    user.lastLogin = new Date();
-    user.lastLoginIp = ip;
-    await user.save();
+    console.log("User found for login:", user.email, "Org ID:", user.organizationId);
 
-    await Session.create({
-      userId: user._id,
-      organizationId: user.organizationId,
-      device,
-      browser,
-      os,
-      ipAddress: ip,
-      userAgent: req.headers['user-agent'],
-      loginTime: new Date(),
-      lastActiveAt: new Date(),
-      refreshToken,
-      active: true,
-    });
+    if (!user.organizationId) {
+      console.error("CRITICAL: organizationId missing for user:", email);
+      return res.status(500).json({ message: "Account configuration error: organizationId missing" });
+    }
 
-    await createAuditLog({
-      userId: user._id,
-      organizationId: user.organizationId,
-      action: 'LOGIN',
-      entityType: 'auth',
-      entityId: user._id,
-      description: `User logged in: ${email}`,
-      ipAddress: ip,
-      userAgent: req.headers['user-agent'],
-    });
+    const payload = {
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.roleId.name.toLowerCase(),
+      organizationId: user.organizationId.toString()
+    };
 
-    return successResponse(res, {
-      accessToken,
-      refreshToken,
+    console.log("Signing Login JWT with Payload:", payload);
+
+    const token = jwt.sign(
+      payload,
+      process.env.JWT_SECRET || "secret",
+      { expiresIn: "1d" }
+    );
+
+    return res.json({
+      token,
       user: {
-        _id: user._id,
-        name: user.name,
+        id: user._id,
         email: user.email,
-        organizationId: user.organizationId,
-        role: (user.role || 'employee').toLowerCase(),
-        status: user.status,
-        lastLogin: user.lastLogin,
-      },
-    }, 'Login successful.');
-  } catch (err) {
-    next(err);
+        role: user.roleId.name,
+        organizationId: user.organizationId
+      }
+    });
+
+  } catch (error) {
+    console.error("LOGIN ERROR FULL:", error); // IMPORTANT
+    return res.status(500).json({ message: error.message || "Server error" });
   }
 };
 
@@ -300,21 +288,24 @@ exports.refreshToken = async (req, res, next) => {
       return errorResponse(res, 'Account is not active.', 403);
     }
 
-    // Rotate: remove old, issue new
-    user.removeRefreshToken(refreshToken);
-    const { device, browser } = parseUserAgent(req.headers['user-agent']);
-    const expiresAt = getRefreshTokenExpiry();
-    const { accessToken, refreshToken: newRefreshToken } = buildTokens(user);
-    user.addRefreshToken(newRefreshToken, device, expiresAt);
-    await user.save();
+    // Issue new token
+    const populatedUser = await User.findById(user._id).populate('roleId');
+    const token = buildTokens(populatedUser);
 
     // Update session
     await Session.findOneAndUpdate(
       { userId: user._id, refreshToken },
-      { refreshToken: newRefreshToken, lastActiveAt: new Date() }
+      { lastActiveAt: new Date() }
     );
 
-    return successResponse(res, { accessToken, refreshToken: newRefreshToken }, 'Tokens refreshed.');
+    return res.status(200).json({
+      token,
+      user: {
+        id: populatedUser._id,
+        email: populatedUser.email,
+        role: populatedUser.roleId.name
+      }
+    });
   } catch (err) {
     next(err);
   }

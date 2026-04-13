@@ -7,12 +7,6 @@ const { logActivity } = require('../services/activityService');
 const { successResponse, errorResponse } = require('../utils/helpers');
 const { enforceAutoLogout } = require('../utils/attendanceHelper');
 
-/**
- * Helper: Auto check-out logic
- * If a record has checkIn but no checkOut and the time is past 7:00 PM,
- * we set checkOut to 7:00 PM and recalculate working hours.
- */
-
 // POST /attendance/checkin
 exports.checkIn = async (req, res) => {
     try {
@@ -22,10 +16,12 @@ exports.checkIn = async (req, res) => {
         const end = new Date(today);
         end.setHours(23, 59, 59, 999);
 
-        const organizationId = req.user.organizationId;
+        const { organizationId, userId } = req.user;
 
+        // Use ...req.orgFilter and req.user.userId
         const existing = await Attendance.findOne({
-            user: req.user._id,
+            user: userId,
+            ...req.orgFilter,
             date: { $gte: start, $lte: end }
         });
 
@@ -42,7 +38,7 @@ exports.checkIn = async (req, res) => {
         if (late) status = 'Late';
 
         const record = await Attendance.create({
-            user: req.user._id,
+            user: userId,
             organizationId,
             date: now,
             checkIn: now,
@@ -50,11 +46,9 @@ exports.checkIn = async (req, res) => {
             late
         });
 
-        console.log("Attendance:", record);
-
         // ✅ LOG ACTIVITY
         await logActivity({
-            userId: req.user._id,
+            userId: userId,
             organizationId,
             action: 'attendance:check-in',
             entityType: 'attendance',
@@ -77,8 +71,12 @@ exports.checkOut = async (req, res) => {
         const end = new Date(today);
         end.setHours(23, 59, 59, 999);
 
+        const { userId, organizationId } = req.user;
+        const now = new Date();
+
         const record = await Attendance.findOne({
-            user: req.user._id,
+            user: userId,
+            ...req.orgFilter,
             date: { $gte: start, $lte: end }
         });
 
@@ -89,7 +87,6 @@ exports.checkOut = async (req, res) => {
             return errorResponse(res, 'Already checked out', 400);
         }
 
-        const now = new Date();
         record.checkOut = now;
         
         // Calculate working hours
@@ -97,18 +94,16 @@ exports.checkOut = async (req, res) => {
         const hours = diffMs / (1000 * 60 * 60);
         record.workingHours = Math.max(0, hours);
 
-        // Half-day logic (keeping it as it was)
         if (hours < 4) {
             record.status = 'Half Day';
         }
 
         await record.save();
-        console.log("Attendance:", record);
 
         // ✅ LOG ACTIVITY
         await logActivity({
-            userId: req.user._id,
-            organizationId: record.organizationId,
+            userId: userId,
+            organizationId,
             action: 'attendance:check-out',
             entityType: 'attendance',
             entityId: record._id,
@@ -124,13 +119,17 @@ exports.checkOut = async (req, res) => {
 // GET /attendance/my
 exports.getMyAttendance = async (req, res) => {
     try {
-        const user = req.user._id;
-        const organizationId = req.user.organizationId;
-        const records = await Attendance.find({ user, organizationId }).sort({ date: -1 });
+        const { userId } = req.user;
 
+        const filter = { 
+            user: userId, 
+            ...req.orgFilter 
+        };
+
+        const records = await Attendance.find(filter).sort({ date: -1 });
         const processedRecords = await Promise.all(records.map(r => enforceAutoLogout(r)));
-        console.log("Attendance:", processedRecords);
-        return successResponse(res, processedRecords, 'Attendance log fetched');
+        
+        return successResponse(res, processedRecords || [], 'Attendance log fetched');
     } catch (err) {
         return errorResponse(res, err.message, 500);
     }
@@ -139,78 +138,64 @@ exports.getMyAttendance = async (req, res) => {
 // GET /attendance/stats
 exports.getAttendanceStats = async (req, res) => {
     try {
-        const user = req.user._id;
-        const organizationId = req.user.organizationId;
+        const { userId, organizationId } = req.user;
         const now = new Date();
         const year = now.getFullYear();
         const month = now.getMonth();
         const start = new Date(year, month, 1);
         const end = new Date(year, month + 1, 1);
-        console.log("Start:", start);
-        console.log("End:", end);
 
         const monthlyRecords = await Attendance.find({
-            user,
-            organizationId,
+            user: userId,
+            ...req.orgFilter,
             date: { $gte: start, $lt: end }
         });
         
         await Promise.all(monthlyRecords.map(r => enforceAutoLogout(r)));
 
-        // Statuses that count as presence
         const presentStatuses = ['Present', 'Late', 'Half Day'];
         const presentDays = monthlyRecords.filter(r => r.checkIn && presentStatuses.includes(r.status)).length;
 
-        // Calculate working days in month so far
         let workingDays = 0;
         const todayDate = now.getDate();
         for (let d = 1; d <= todayDate; d++) {
             const dateObj = new Date(year, month, d);
             const dayOfWeek = dateObj.getDay(); 
-            
-            let isHoliday = false;
-            if (dayOfWeek === 0) isHoliday = true; // Sunday
+            let isHoliday = (dayOfWeek === 0); // Sunday
             if (dayOfWeek === 6) {
-                // 2nd (8-14) or 4th (22-28) Saturday
                 if ((d >= 8 && d <= 14) || (d >= 22 && d <= 28)) isHoliday = true;
             }
-
             if (!isHoliday) workingDays++;
         }
 
         const attendancePercentage = workingDays > 0 ? (presentDays / workingDays) * 100 : 0;
 
-        const emp = await HrEmployee.findOne({ userId: user, organizationId });
+        const emp = await HrEmployee.findOne({ userId, ...req.orgFilter });
         let monthlyLeaves = 0;
         let pendingRequests = 0;
         if (emp) {
             [monthlyLeaves, pendingRequests] = await Promise.all([
                 Leave.countDocuments({
                     employeeId: emp._id,
-                    organizationId,
-                    $or: [
-                        { startDate: { $lte: end }, endDate: { $gte: start } }
-                    ],
+                    ...req.orgFilter,
+                    $or: [{ startDate: { $lte: end }, endDate: { $gte: start } }],
                     status: 'approved'
                 }),
                 Leave.countDocuments({
                     employeeId: emp._id,
-                    organizationId,
+                    ...req.orgFilter,
                     status: 'pending'
                 })
             ]);
         }
 
-        const data = {
+        return successResponse(res, {
             presentDays,
             workingDays,
             attendancePercentage: Math.round(attendancePercentage),
             monthlyLeaves,
             pendingRequests
-        };
-
-        console.log("Stats:", data);
-        return successResponse(res, data, 'Attendance stats fetched');
+        }, 'Attendance stats fetched');
     } catch (err) {
         return errorResponse(res, err.message, 500);
     }
@@ -219,8 +204,7 @@ exports.getAttendanceStats = async (req, res) => {
 // GET /attendance/monthly
 exports.getMonthlyChart = async (req, res) => {
     try {
-        const user = req.user._id;
-        const organizationId = req.user.organizationId;
+        const { userId } = req.user;
         const now = new Date();
         const year = now.getFullYear();
         const month = now.getMonth();
@@ -229,8 +213,8 @@ exports.getMonthlyChart = async (req, res) => {
         const end = new Date(year, month + 1, 1);
 
         const records = await Attendance.find({
-            user,
-            organizationId,
+            user: userId,
+            ...req.orgFilter,
             date: { $gte: start, $lt: end }
         }).lean();
 
@@ -260,8 +244,7 @@ exports.getMonthlyChart = async (req, res) => {
             chartData.push({ date: dayStr, status });
         }
 
-        console.log("Chart Data:", chartData);
-        return successResponse(res, chartData, 'Chart data fetched');
+        return successResponse(res, chartData || [], 'Chart data fetched');
     } catch (err) {
         return errorResponse(res, err.message, 500);
     }

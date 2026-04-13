@@ -3,12 +3,12 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/authenticate');
-const { requireRole } = require('../middleware/requireRole');
+const { checkRole } = require('../middleware/checkRole');
 const { organizationIsolation } = require('../middleware/organizationIsolation');
 const hrms = require('../controllers/hrmsController');
 
 // All HRMS routes require authentication + org isolation + Admin or HR role
-router.use(authenticate, organizationIsolation, requireRole(['admin', 'hr', 'manager']));
+router.use(authenticate, organizationIsolation, checkRole('admin', 'hr'));
 
 // ─── Stats ───────────────────────────────────────────────────────────────────
 router.get('/stats', hrms.getHrmsStats);

@@ -4,25 +4,23 @@ const HrEmployee = require('../models/HrEmployee');
 const Department = require('../models/Department');
 const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
+const User = require('../models/User');
+const Role = require('../models/Role');
+const bcrypt = require('bcryptjs');
 const { logActivity } = require('../services/activityService');
 const { sendNotification } = require('../services/notificationService');
 const { errorResponse, successResponse } = require('../utils/helpers');
 const { enforceAutoLogout } = require('../utils/attendanceHelper');
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const getOrgId = (req) => req.user?.organizationId;
-
 // ─── HRMS Stats ───────────────────────────────────────────────────────────────
 
 exports.getHrmsStats = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const [totalEmp, activeEmp, deptCount, pendingLeaves] = await Promise.all([
-      HrEmployee.countDocuments({ organizationId: orgId }),
-      HrEmployee.countDocuments({ organizationId: orgId, status: 'active' }),
-      Department.countDocuments({ organizationId: orgId }),
-      Leave.countDocuments({ organizationId: orgId, status: 'pending' }),
+      HrEmployee.countDocuments({ ...req.orgFilter }),
+      HrEmployee.countDocuments({ ...req.orgFilter, status: 'active' }),
+      Department.countDocuments({ ...req.orgFilter }),
+      Leave.countDocuments({ ...req.orgFilter, status: 'pending' }),
     ]);
     return successResponse(res, {
       totalEmployees: totalEmp,
@@ -39,9 +37,8 @@ exports.getHrmsStats = async (req, res) => {
 
 exports.getEmployees = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const { search, status, department } = req.query;
-    const filter = { organizationId: orgId };
+    const filter = { ...req.orgFilter };
     if (status) filter.status = status;
     if (department) filter.department = department;
     if (search) {
@@ -57,37 +54,45 @@ exports.getEmployees = async (req, res) => {
   }
 };
 
-const User = require('../models/User');
-const bcrypt = require('bcryptjs');
-
 exports.createEmployee = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const { name, email, password, role, department, status, joiningDate, phone } = req.body;
+    const { organizationId, userId } = req.user;
     
     if (!name || !email) return errorResponse(res, 'Name and email are required.', 400);
 
     const exists = await User.findOne({ email });
     if (exists) return errorResponse(res, 'User with this email already exists', 409);
 
+    // Find the correct roleId from DB
+    const roleName = (role || 'employee').toLowerCase();
+    let dbRole = await Role.findOne({ name: roleName, organizationId });
+    if (!dbRole) {
+        // Fallback or create if it's a standard role
+        dbRole = await Role.findOne({ name: 'employee', organizationId });
+    }
+
+    if (!dbRole) return errorResponse(res, 'Role not found for this organization.', 404);
+
     // 1. Create User
     const hash = await bcrypt.hash(password || 'TempPass@123', 10);
-    const user = await User.create({
+    const newUser = await User.create({
       name,
       email,
       passwordHash: hash,
-      organizationId: orgId,
-      role: role?.toLowerCase() || 'employee',
+      organizationId,
+      roleId: dbRole._id,
+      role: dbRole.name, // Keeping for legacy but source of truth is roleId
       status: 'active',
     });
 
     // 2. Create Employee
     const employee = await HrEmployee.create({
-      organizationId: orgId,
-      userId: user._id, 
+      organizationId,
+      userId: newUser._id, 
       name,
       email,
-      role: role || 'Employee',
+      role: dbRole.name,
       department: department || null,
       status: status || 'active',
       joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
@@ -96,15 +101,15 @@ exports.createEmployee = async (req, res) => {
 
     // ✅ LOG ACTIVITY
     await logActivity({
-      userId: req.user._id,
-      organizationId: orgId,
+      userId: userId,
+      organizationId,
       action: 'employee:added',
       entityType: 'user',
-      entityId: user._id,
+      entityId: newUser._id,
       description: `New employee added: ${name}`
     });
 
-    return successResponse(res, { employee, userId: user._id }, 'Employee and User created.', 201);
+    return successResponse(res, { employee, userId: newUser._id }, 'Employee and User created.', 201);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -112,9 +117,8 @@ exports.createEmployee = async (req, res) => {
 
 exports.updateEmployee = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const employee = await HrEmployee.findOneAndUpdate(
-      { _id: req.params.id, organizationId: orgId },
+      { _id: req.params.id, ...req.orgFilter },
       req.body,
       { new: true, runValidators: true }
     );
@@ -127,8 +131,7 @@ exports.updateEmployee = async (req, res) => {
 
 exports.deleteEmployee = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
-    const employee = await HrEmployee.findOneAndDelete({ _id: req.params.id, organizationId: orgId });
+    const employee = await HrEmployee.findOneAndDelete({ _id: req.params.id, ...req.orgFilter });
     if (!employee) return errorResponse(res, 'Employee not found.', 404);
     return successResponse(res, 'Employee deleted.');
   } catch (err) {
@@ -140,8 +143,7 @@ exports.deleteEmployee = async (req, res) => {
 
 exports.getDepartments = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
-    const depts = await Department.find({ organizationId: orgId }).sort({ name: 1 }).lean();
+    const depts = await Department.find({ ...req.orgFilter }).sort({ name: 1 }).lean();
     return successResponse(res, depts, 'Departments fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -150,10 +152,9 @@ exports.getDepartments = async (req, res) => {
 
 exports.createDepartment = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const { name, description } = req.body;
     if (!name) return errorResponse(res, 'Department name is required.', 400);
-    const dept = await Department.create({ organizationId: orgId, name, description: description || '' });
+    const dept = await Department.create({ organizationId: req.user.organizationId, name, description: description || '' });
     return successResponse(res, dept, 'Department created.', 201);
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -162,9 +163,8 @@ exports.createDepartment = async (req, res) => {
 
 exports.updateDepartment = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const dept = await Department.findOneAndUpdate(
-      { _id: req.params.id, organizationId: orgId },
+      { _id: req.params.id, ...req.orgFilter },
       req.body,
       { new: true }
     );
@@ -177,8 +177,7 @@ exports.updateDepartment = async (req, res) => {
 
 exports.deleteDepartment = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
-    const dept = await Department.findOneAndDelete({ _id: req.params.id, organizationId: orgId });
+    const dept = await Department.findOneAndDelete({ _id: req.params.id, ...req.orgFilter });
     if (!dept) return errorResponse(res, 'Department not found.', 404);
     return successResponse(res, 'Department deleted.');
   } catch (err) {
@@ -190,27 +189,21 @@ exports.deleteDepartment = async (req, res) => {
 
 exports.getAttendance = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const { date, employeeId, month } = req.query;
-    const filter = { organizationId: orgId };
+    const filter = { ...req.orgFilter };
     if (date) filter.date = date;
     if (employeeId) filter.user = employeeId;
     if (month) {
-      // month = "2026-03"
       const [year, m] = month.split('-').map(Number);
       const start = new Date(year, m - 1, 1);
       const end = new Date(year, m, 1);
-      console.log("Start:", start);
-      console.log("End:", end);
       filter.date = { $gte: start, $lt: end };
     }
     const records = await Attendance.find(filter)
-      .populate('user', 'name email role')
+      .populate('user', 'name email')
       .sort({ date: -1 });
 
-    // Apply auto-logout logic to all records
     const processedRecords = await Promise.all(records.map(r => enforceAutoLogout(r)));
-    
     return successResponse(res, processedRecords, 'Attendance fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -221,11 +214,10 @@ exports.getAttendance = async (req, res) => {
 
 exports.getLeaves = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const { status, employeeId } = req.query;
-    const filter = { organizationId: orgId };
+    const filter = { ...req.orgFilter };
     if (status) filter.status = status;
-    if (employeeId) filter.user = employeeId; // Using user ref from Leave model
+    if (employeeId) filter.user = employeeId;
     const leaves = await Leave.find(filter)
       .populate('user', 'name email')
       .sort({ createdAt: -1 })
@@ -239,28 +231,28 @@ exports.getLeaves = async (req, res) => {
 
 exports.updateLeaveStatus = async (req, res) => {
   try {
-    const orgId = getOrgId(req);
     const { status, rejectionReason } = req.body;
     if (!['Approved', 'Rejected', 'approved', 'rejected'].includes(status)) {
       return errorResponse(res, 'status must be Approved or Rejected.', 400);
     }
     const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
     const leave = await Leave.findOneAndUpdate(
-      { _id: req.params.id, organizationId: orgId },
+      { _id: req.params.id, ...req.orgFilter },
       {
         status: normalizedStatus,
-        approvedBy: req.user._id,
+        approvedBy: req.user.userId,
         approvedAt: new Date(),
         rejectionReason: rejectionReason || null,
       },
       { new: true }
     ).populate('user', 'name email');
+    
     if (!leave) return errorResponse(res, 'Leave request not found.', 404);
 
     // ✅ LOG ACTIVITY
     await logActivity({
-      userId: req.user._id,
-      organizationId: orgId,
+      userId: req.user.userId,
+      organizationId: req.user.organizationId,
       action: `leave:${normalizedStatus.toLowerCase()}`,
       entityType: 'leave',
       entityId: leave._id,
@@ -270,14 +262,14 @@ exports.updateLeaveStatus = async (req, res) => {
     // ✅ TRIGGER NOTIFICATION
     await sendNotification({
       userId: leave.user._id,
-      organizationId: orgId,
+      organizationId: req.user.organizationId,
       title: `Leave ${normalizedStatus}`,
       message: `Your leave request for ${leave.leaveType} has been ${normalizedStatus.toLowerCase()}.`,
       type: normalizedStatus === 'Approved' ? 'leave_approved' : 'leave_rejected',
       link: { type: 'leave', id: leave._id }
     });
 
-    return successResponse(res, `Leave ${normalizedStatus}.`, leave);
+    return successResponse(res, leave, `Leave ${normalizedStatus}.`);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }

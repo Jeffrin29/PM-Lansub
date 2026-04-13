@@ -8,9 +8,8 @@ const { successResponse, errorResponse, getPagination, paginatedResponse } = req
 // GET /api/discussions
 const getDiscussions = async (req, res) => {
   try {
-    const { organizationId } = req.user;
     const { page, limit, skip } = getPagination(req.query);
-    const filter = { organizationId };
+    const filter = { ...req.orgFilter };
     if (req.query.projectId) filter.projectId = req.query.projectId;
 
     const [discussions, total] = await Promise.all([
@@ -25,7 +24,7 @@ const getDiscussions = async (req, res) => {
       Discussion.countDocuments(filter),
     ]);
 
-    const data = discussions.map((d) => ({
+    const data = (discussions || []).map((d) => ({
       ...d,
       replyCount: d.comments?.length || 0,
     }));
@@ -39,23 +38,23 @@ const getDiscussions = async (req, res) => {
 // POST /api/discussions
 const createDiscussion = async (req, res) => {
   try {
-    const { organizationId } = req.user;
     const { topic, projectId, description, tags, meetingLink } = req.body;
+    const { userId, organizationId } = req.user;
 
     const discussion = await Discussion.create({
       topic,
       projectId: projectId || null,
       organizationId,
-      author: req.user._id,
+      author: userId,
       description: description || '',
       tags: tags || [],
-      createdBy: req.user._id,
-      meetingLink: meetingLink || "", // ✅ include this
+      createdBy: userId,
+      meetingLink: meetingLink || "",
     });
 
     // ✅ LOG ACTIVITY
     await logActivity({
-      userId: req.user._id,
+      userId: userId,
       organizationId,
       action: 'discussion:created',
       entityType: 'discussion',
@@ -63,11 +62,10 @@ const createDiscussion = async (req, res) => {
       metadata: { topic: discussion.topic }
     });
 
-    // ✅ TRIGGER NOTIFICATION (If meeting link exists)
+    // ✅ TRIGGER NOTIFICATION
     if (meetingLink) {
-      // In a real app, notify project members. For demo, notify all org members (simplified)
       await sendNotification({
-        userId: req.user._id, // Ideally recipients
+        userId: userId,
         organizationId,
         title: 'New Meeting Scheduled',
         message: `A meeting was scheduled for topic: ${topic}`,
@@ -85,8 +83,7 @@ const createDiscussion = async (req, res) => {
 // GET /api/discussions/:id
 const getDiscussion = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const discussion = await Discussion.findOne({ _id: req.params.id, organizationId })
+    const discussion = await Discussion.findOne({ _id: req.params.id, ...req.orgFilter })
       .populate('author', 'name email')
       .populate('comments.author', 'name email')
       .populate('projectId', 'projectTitle')
@@ -102,44 +99,44 @@ const getDiscussion = async (req, res) => {
 // POST /api/discussions/:id/comments
 const addComment = async (req, res) => {
   try {
-    const { organizationId } = req.user;
     const { content, mentions } = req.body;
+    const { userId, organizationId, name } = req.user;
 
-    const discussion = await Discussion.findOne({ _id: req.params.id, organizationId });
+    const discussion = await Discussion.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!discussion) return errorResponse(res, 'Discussion not found', 404);
 
     discussion.comments.push({
-      author: req.user._id,
+      author: userId,
       content,
       mentions: mentions || [],
     });
     discussion.lastActivityAt = new Date();
     await discussion.save();
 
-    // Create in global Comment collection (For Overview Dashboard)
+    // Create in global Comment collection
     await Comment.create({
       text: content,
-      user: req.user._id,
+      user: userId,
       projectId: discussion.projectId,
       organizationId: organizationId
     });
 
     // ✅ LOG ACTIVITY
     await logActivity({
-      userId: req.user._id,
+      userId: userId,
       organizationId,
       action: 'discussion:replied',
       entityType: 'discussion',
       entityId: discussion._id,
     });
 
-    // ✅ TRIGGER NOTIFICATION (Notify the author of the discussion)
-    if (discussion.author.toString() !== req.user._id.toString()) {
+    // ✅ TRIGGER NOTIFICATION
+    if (discussion.author.toString() !== userId) {
       await sendNotification({
         userId: discussion.author,
         organizationId,
         title: 'New Reply Received',
-        message: `${req.user.name} replied to your discussion: ${discussion.topic}`,
+        message: `${name || 'Someone'} replied to your discussion: ${discussion.topic}`,
         type: 'discussion_replied',
         link: { type: 'discussion', id: discussion._id }
       });
@@ -157,10 +154,9 @@ const addComment = async (req, res) => {
 // GET /api/discussions/comments/latest
 const getLatestComments = async (req, res) => {
   try {
-    const { organizationId } = req.user;
     const limit = parseInt(req.query.limit, 10) || 10;
 
-    const discussions = await Discussion.find({ organizationId, 'comments.0': { $exists: true } })
+    const discussions = await Discussion.find({ ...req.orgFilter, 'comments.0': { $exists: true } })
       .sort({ lastActivityAt: -1 })
       .limit(limit)
       .populate('comments.author', 'name email')

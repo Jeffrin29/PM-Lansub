@@ -21,20 +21,21 @@ export default function AuthPage() {
       setError("");
 
       const res = await authApi.login(email, password);
+      console.log("LOGIN RESPONSE:", res);
 
-      const token = res?.data?.accessToken;
-
-      if (!token) {
-        throw new Error("No token received");
+      if (!res || !res.token) {
+        throw new Error("No token received from server");
       }
 
-      // Save token properly
-      setToken(token);
+      // Save token and user properly
+      localStorage.setItem("token", res.token);
+      localStorage.setItem("user", JSON.stringify(res.user));
 
       // Redirect
       router.push("/dashboard");
 
     } catch (err: any) {
+      console.error("Login Error:", err);
       setError(err.message || "Login failed");
     }
   }

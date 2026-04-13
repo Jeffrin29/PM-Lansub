@@ -20,6 +20,7 @@ import {
 
 import { FiLogOut } from "react-icons/fi";
 
+// roles that can see each nav item (undefined = all roles can see it)
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", Icon: FaChartPie },
   { href: "/dashboard/overview", label: "Overview", Icon: FaStream },
@@ -28,41 +29,70 @@ const NAV_ITEMS = [
   { href: "/dashboard/timesheets", label: "Timesheets", Icon: FaClock },
   { href: "/dashboard/activity", label: "Activity Feed", Icon: FaStream },
   { href: "/dashboard/employee", label: "My Dashboard", Icon: FaUsers },
-  { href: "/dashboard/admin", label: "Admin", Icon: FaUserShield },
-  { href: "/dashboard/hrms", label: "HRMS", Icon: FaUsers },
   { href: "/dashboard/discussions", label: "Discussions", Icon: FaComments },
-  { href: "/dashboard/reports", label: "Reports", Icon: FaFileAlt },
   { href: "/dashboard/notifications", label: "Notifications", Icon: FaBell },
   { href: "/dashboard/profile", label: "Profile", Icon: FaUserShield },
-  { href: "/dashboard/ai", label: "AI Assistant", Icon: FaRobot },
+  // ── Restricted pages ───────────────────────────────────────────────────────
+  {
+    href: "/dashboard/reports",
+    label: "Reports",
+    Icon: FaFileAlt,
+    allowedRoles: ["admin", "project_manager"],
+  },
+  {
+    href: "/dashboard/hrms",
+    label: "HRMS",
+    Icon: FaUsers,
+    allowedRoles: ["admin", "hr"],
+  },
+  {
+    href: "/dashboard/admin",
+    label: "Admin",
+    Icon: FaUserShield,
+    allowedRoles: ["admin"],
+  },
+  {
+    href: "/dashboard/ai",
+    label: "AI Assistant",
+    Icon: FaRobot,
+  },
 ];
 
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [role, setRole] = useState("admin"); // Fallback to admin for demo
+  const [role, setRole] = useState<string>("employee");
+
   useEffect(() => {
     try {
-      const authData = JSON.parse(localStorage.getItem("lansub-auth") || "{}");
-      const r = (authData.user?.role || 'admin').toLowerCase();
+      const userRaw = localStorage.getItem("user");
+      const user = userRaw ? JSON.parse(userRaw) : null;
+      const r = (user?.role?.name || user?.role || "employee").toLowerCase();
       setRole(r);
-    } catch (e) {
-      setRole("admin");
+    } catch {
+      setRole("employee");
     }
   }, []);
 
   function handleLogout() {
-    localStorage.removeItem("lansub-auth");
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     router.push("/auth");
   }
+
+  // Filter nav items based on the current user's role
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (!item.allowedRoles) return true;               // no restriction → visible to all
+    return item.allowedRoles.includes(role);           // role must be in allowedRoles
+  });
 
   return (
     <div className="w-64 h-screen flex flex-col bg-white dark:bg-black border-r border-gray-200 dark:border-zinc-800 text-black dark:text-white p-6">
       <h1 className="text-xl font-semibold mb-10">LANSUB</h1>
 
       <nav className="space-y-1.5 flex-1 overflow-y-auto scrollbar-hide">
-        {NAV_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
@@ -80,19 +110,20 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* Role badge */}
+      <div className="mb-4 px-4 py-1.5 text-xs font-semibold rounded-full self-start capitalize
+        bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+        {role}
+      </div>
 
       {/* Logout */}
-
       <button
         onClick={handleLogout}
         className="flex items-center gap-3 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition"
       >
-
         <FiLogOut size={18} />
         Logout
       </button>
-
     </div>
-
   );
 }

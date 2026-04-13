@@ -17,7 +17,7 @@ router.get('/me', emp.getMyProfile);
 router.get('/stats', emp.getMyStats);
 
 // Admin-level employee management (CRUD) - role restricted
-router.use('/', requireRole(['Admin', 'Manager']));
+router.use('/', requireRole(['admin', 'hr', 'project_manager']));
 
 router.get('/', hrms.getEmployees);
 router.post('/', hrms.createEmployee);

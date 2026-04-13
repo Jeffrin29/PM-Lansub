@@ -1,57 +1,62 @@
-const { verifyAccessToken } = require('../utils/jwt');
-const User = require('../models/User');
-const { errorResponse } = require('../utils/helpers');
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
 /**
- * Protect routes — validates Bearer JWT access token and attaches user to req.user
+ * Standardized JWT authentication middleware
+ * Populates req.user from DB to ensure role and organization are always current.
  */
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return errorResponse(res, 'Authentication required. Please provide a valid token.', 401);
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
     }
 
-    const token = authHeader.split(' ')[1];
-    let decoded;
-    try {
-      decoded = verifyAccessToken(token);
-    } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        return errorResponse(res, 'Access token has expired. Please refresh your token.', 401);
-      }
-      return errorResponse(res, 'Invalid access token.', 401);
-    }
-
-    const user = await User.findById(decoded.userId)
-      .select('+passwordHash')
-      .populate('roleId', 'name displayName level permissions isSystemRole')
-      .lean({ virtuals: false });
-
+    const token = authHeader.split(" ")[1];
+    const secret = process.env.JWT_SECRET || "secret";
+    
+    const decoded = jwt.verify(token, secret);
+    console.log("Decoded JWT:", decoded);
+    console.log("Org ID from Token:", decoded.organizationId);
+    
+    // Always fetch fresh user from DB to ensure role/org consistency
+    // Standardize to userId, organizationId, and role (from roleId.name)
+    const user = await User.findById(decoded.userId).populate("roleId");
+    
     if (!user) {
-      return errorResponse(res, 'User account not found.', 401);
+      return res.status(401).json({ message: "User no longer exists" });
     }
 
-    if (user.status !== 'active') {
-      return errorResponse(res, `Account is ${user.status}. Please contact your administrator.`, 403);
+    if (!user.roleId || !user.roleId.name) {
+      return res.status(500).json({ message: "User role configuration error" });
     }
 
-    // Attach user info to request
+    // Attach standardized user object
     req.user = {
       _id: user._id,
-      id: user._id.toString(), // Added id as requested
       userId: user._id.toString(),
-      name: user.name,
+      role: user.roleId.name.toLowerCase(),
+      organizationId: user.organizationId ? user.organizationId.toString() : null,
       email: user.email,
-      organizationId: user.organizationId.toString(),
-      roleId: user.roleId?._id?.toString(),
-      role: (user.role || (user.roleId && user.roleId.name) || 'employee').toLowerCase(),
-      status: user.status,
+      name: user.name
     };
+
+    // Safety check: ensure organizationId exists
+    if (!req.user.organizationId) {
+      console.error("Organization context is missing for user:", user.email);
+      return res.status(403).json({
+        message: "Organization context is missing"
+      });
+    }
+
+    // Also attach organizationId directly for convenience (used by some middleware)
+    req.organizationId = req.user.organizationId;
 
     next();
   } catch (err) {
-    return errorResponse(res, 'Authentication failed.', 500);
+    console.error("JWT AUTH ERROR:", err.message);
+    return res.status(401).json({ message: "Invalid or expired access token" });
   }
 };
 
@@ -66,4 +71,7 @@ const optionalAuthenticate = async (req, res, next) => {
   return authenticate(req, res, next);
 };
 
-module.exports = { authenticate, optionalAuthenticate };
+module.exports = {
+  authenticate,
+  optionalAuthenticate
+};

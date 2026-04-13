@@ -143,9 +143,10 @@ export default function HRMSPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const authData = JSON.parse(localStorage.getItem("lansub-auth") || "{}");
-        const roleStr = (typeof authData.user?.role === 'string' ? authData.user.role : authData.user?.role?.name || '').toLowerCase();
-        if (!["admin", "hr", "manager"].includes(roleStr)) {
+        const userRaw = localStorage.getItem("user");
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const roleStr = (typeof user?.role === 'string' ? user.role : user?.role?.name || '').toLowerCase();
+        if (user && !["admin", "hr", "manager"].includes(roleStr)) {
             router.push("/dashboard");
         }
     }, [router]);

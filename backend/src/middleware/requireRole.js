@@ -2,15 +2,12 @@
 const { errorResponse } = require('../utils/helpers');
 
 /**
- * requireRole - RBAC middleware that checks the user's role name.
+ * requireRole(roles) — legacy-compatible RBAC middleware.
  *
- * Usage:
- *   router.get('/hrms', authenticate, requireRole(['Admin', 'Manager']), controller)
+ * Works with req.user.role which is now always a plain lowercase string
+ * (set by authenticate.js). Supports 'manager' as alias for 'project_manager'.
  *
- * Checks req.user.role.name OR req.user.role.displayName against the allowed array (case-insensitive).
- * Also passes super_admin through unconditionally.
- *
- * @param {string[]} allowedRoles - e.g. ['Admin', 'Manager']
+ * Usage: requireRole(['admin', 'hr'])
  */
 const requireRole = (roles = []) => {
   return (req, res, next) => {
@@ -18,11 +15,24 @@ const requireRole = (roles = []) => {
       return errorResponse(res, 'Authentication required.', 401);
     }
 
-    const role = (req.user?.role || '').toLowerCase();
+    const role = (req.user.role || '').toLowerCase();
 
-    if (!roles.map(r => r.toLowerCase()).includes(role)) {
+    // admin always passes
+    if (role === 'admin') return next();
+
+    // Normalize the allowed list: 'manager' alias → 'project_manager'
+    const normalizedAllowed = roles.map((r) => {
+      const lower = r.toLowerCase();
+      return lower === 'manager' ? 'project_manager' : lower;
+    });
+
+    // Also normalize incoming role: 'manager' → 'project_manager'
+    const normalizedRole = role === 'manager' ? 'project_manager' : role;
+
+    if (!normalizedAllowed.includes(normalizedRole)) {
       return res.status(403).json({
-        message: `Access denied. Required role(s): ${roles.join(", ")}`
+        success: false,
+        message: `Access denied. Required role(s): ${roles.join(', ')}`,
       });
     }
 
@@ -31,3 +41,4 @@ const requireRole = (roles = []) => {
 };
 
 module.exports = { requireRole };
+

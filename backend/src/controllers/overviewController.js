@@ -9,23 +9,47 @@ const { successResponse, errorResponse } = require('../utils/helpers');
 
 exports.getOverview = async (req, res) => {
   try {
-    const { organizationId } = req.user;
+    const { organizationId, userId, role } = req.user;
     const orgId = new mongoose.Types.ObjectId(organizationId);
+    const isPrivileged = ['admin', 'hr'].includes(role);
 
-    // 1. Fetch data with org isolation
+    // Role-scoped project filter
+    let projectFilter = { organizationId: orgId };
+    if (role === 'project_manager') {
+      projectFilter.$or = [{ owner: userId }, { 'teamMembers.userId': userId }];
+    } else if (role === 'employee') {
+      projectFilter.$or = [{ owner: userId }, { 'teamMembers.userId': userId }];
+    }
+
+    // Fetch data with org isolation
     const [projects, tasks, users, comments] = await Promise.all([
-      Project.find({ organizationId: orgId }).limit(6),
+      Project.find(projectFilter).limit(6),
       Task.find({ organizationId: orgId }),
-      User.find({ organizationId: orgId }).select('name email role status'),
+      // Only admin/hr can see all users
+      isPrivileged
+        ? User.find({ organizationId: orgId }).select('name email role status')
+        : [],
       Comment.find({ organizationId: orgId })
         .populate('user', 'name email')
         .sort({ createdAt: -1 })
         .limit(5)
     ]);
 
-    // 2. Urgent tasks (overdue + not completed)
+    // Task filter based on role
+    let visibleTasks = tasks;
+    if (role === 'employee') {
+      visibleTasks = tasks.filter(t =>
+        t.assignedTo?.toString() === userId ||
+        t.createdBy?.toString() === userId
+      );
+    } else if (role === 'project_manager') {
+      const projectIds = projects.map(p => p._id.toString());
+      visibleTasks = tasks.filter(t => projectIds.includes(t.projectId?.toString()));
+    }
+
+    // Urgent tasks (overdue + not completed)
     const now = new Date();
-    const urgentTasks = tasks
+    const urgentTasks = visibleTasks
       .filter(t => t.dueDate && new Date(t.dueDate) < now && t.status !== 'complete')
       .map(t => ({
         _id: t._id,
@@ -35,7 +59,7 @@ exports.getOverview = async (req, res) => {
         project: projects.find(p => p._id.toString() === t.projectId?.toString())?.projectTitle || 'N/A'
       }));
 
-    // 3. Project progress (real-time calculation)
+    // Project progress (real-time calculation)
     const projectProgress = projects.map(p => {
       const pTasks = tasks.filter(t => t.projectId?.toString() === p._id.toString());
       const total = pTasks.length;
@@ -48,7 +72,7 @@ exports.getOverview = async (req, res) => {
       };
     });
 
-    // 4. Global Comments (mapped for frontend)
+    // Global Comments (mapped for frontend)
     const finalComments = comments.map(c => ({
       id: c._id,
       user: c.user?.name || 'Unknown',
@@ -56,18 +80,18 @@ exports.getOverview = async (req, res) => {
       time: c.createdAt
     }));
 
-    // 5. Stats
+    // Stats
     const stats = {
       activeProjects: projects.filter(p => p.status === 'active').length,
-      pendingTasks: tasks.filter(t => t.status !== 'complete').length,
+      pendingTasks: visibleTasks.filter(t => t.status !== 'complete').length,
       teamSize: users.length
     };
 
     return successResponse(res, {
-      urgentTasks,
-      users,
-      projectProgress,
-      comments: finalComments,
+      urgentTasks: urgentTasks || [],
+      users: users || [],
+      projectProgress: projectProgress || [],
+      comments: finalComments || [],
       stats
     });
   } catch (err) {

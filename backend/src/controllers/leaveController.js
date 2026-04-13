@@ -8,12 +8,14 @@ const { errorResponse, successResponse } = require('../utils/helpers');
 // Helper: find the HR employee record that belongs to the logged-in user
 const getMyEmployee = async (req) => {
   const orgId = req.user?.organizationId;
-  return HrEmployee.findOne({ organizationId: orgId, userId: req.user._id }).lean();
+  const userId = req.user?.userId || req.user?._id;
+  return HrEmployee.findOne({ organizationId: orgId, userId }).lean();
 };
 
 exports.applyLeave = async (req, res) => {
   try {
     const orgId = req.user?.organizationId;
+    const userId = req.user?.userId || req.user?._id;
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
@@ -25,7 +27,7 @@ exports.applyLeave = async (req, res) => {
     const leave = await Leave.create({
       organizationId: orgId,
       employeeId: emp._id,
-      user: req.user._id,
+      user: userId,
       leaveType,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
@@ -33,11 +35,11 @@ exports.applyLeave = async (req, res) => {
       status: 'Pending',
     });
 
-    console.log("Leaves:", leave); // Debug as requested
+    console.log("Leaves:", leave);
 
     // ✅ LOG ACTIVITY
     await logActivity({
-      userId: req.user._id,
+      userId,
       organizationId: orgId,
       action: 'leave:applied',
       entityType: 'leave',
@@ -45,10 +47,9 @@ exports.applyLeave = async (req, res) => {
       description: `Leave applied: ${leaveType} (${startDate} to ${endDate})`
     });
 
-    // ✅ TRIGGER NOTIFICATION (For HR/Admin)
-    // Simplified for demo: notifying the app's current user for visibility
+    // ✅ TRIGGER NOTIFICATION
     await sendNotification({
-      userId: req.user._id, 
+      userId,
       organizationId: orgId,
       title: 'Leave Request Submitted',
       message: `Your ${leaveType} leave request has been submitted for review.`,
@@ -64,12 +65,14 @@ exports.applyLeave = async (req, res) => {
 
 exports.getMyLeaves = async (req, res) => {
   try {
+    const orgId = req.user?.organizationId;
+    const userId = req.user?.userId || req.user?._id;
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
-    const leaves = await Leave.find({ user: req.user._id }).sort({ createdAt: -1 }).lean();
-    console.log("Leaves History:", leaves); // Debug
-    return successResponse(res, leaves, 'Leaves fetched.');
+    const leaves = await Leave.find({ organizationId: orgId, user: userId }).sort({ createdAt: -1 }).lean();
+    console.log("Leaves History:", leaves);
+    return successResponse(res, leaves || [], 'Leaves fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -77,7 +80,8 @@ exports.getMyLeaves = async (req, res) => {
 exports.cancelLeave = async (req, res) => {
   try {
     const orgId = req.user?.organizationId;
-    const leave = await Leave.findOneAndDelete({ _id: req.params.id, organizationId: orgId, user: req.user._id });
+    const userId = req.user?.userId || req.user?._id;
+    const leave = await Leave.findOneAndDelete({ _id: req.params.id, organizationId: orgId, user: userId });
     if (!leave) return errorResponse(res, 'Leave not found or unauthorized.', 404);
     return successResponse(res, null, 'Leave request cancelled.');
   } catch (err) {

@@ -21,10 +21,7 @@ const RISK_OPTIONS    = ["Low","Medium","High"];
 // ─── Token helper ─────────────────────────────────────────────────────────────
 function getToken(): string | null {
   try {
-    const raw = localStorage.getItem("lansub-auth");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.accessToken ?? parsed?.token ?? null;
+    return localStorage.getItem("token");
   } catch {
     return null;
   }

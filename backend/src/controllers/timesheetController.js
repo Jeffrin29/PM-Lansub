@@ -5,14 +5,12 @@ const { successResponse, errorResponse, getPagination, paginatedResponse } = req
 // GET /api/timesheets
 const getTimesheets = async (req, res) => {
   try {
-    const { organizationId, _id: currentUserId, role } = req.user;
+    const { userId, role } = req.user;
     const { page, limit, skip, sort } = getPagination(req.query);
-    const filter = { organizationId };
+    const filter = { ...req.orgFilter };
 
-    // Role-based filtering
-    const roleName = role?.name?.toLowerCase();
-    if (roleName === 'employee') {
-      filter.user = currentUserId;
+    if (role === 'employee') {
+      filter.user = userId;
     } else if (req.query.userId || req.query.user) {
       filter.user = req.query.userId || req.query.user;
     }
@@ -40,7 +38,7 @@ const getTimesheets = async (req, res) => {
       Timesheet.countDocuments(filter),
     ]);
 
-    return successResponse(res, paginatedResponse(timesheets, total, page, limit));
+    return successResponse(res, paginatedResponse(timesheets || [], total || 0, page, limit));
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -49,11 +47,11 @@ const getTimesheets = async (req, res) => {
 // POST /api/timesheets
 const createTimesheet = async (req, res) => {
   try {
-    const { organizationId } = req.user;
+    const { organizationId, userId } = req.user;
     const { task, project, taskId, projectId, hours, billingType, notes, date } = req.body;
 
     const timesheet = await Timesheet.create({
-      user: req.user._id, // Ignore any userId/user from frontend
+      user: userId,
       task: task || taskId || null,
       project: project || projectId,
       organizationId,
@@ -61,7 +59,7 @@ const createTimesheet = async (req, res) => {
       billingType: billingType || 'billable',
       notes: notes || '',
       date: date ? new Date(date) : new Date(),
-      createdBy: req.user._id,
+      createdBy: userId,
     });
 
     const populated = await timesheet.populate([
@@ -79,12 +77,11 @@ const createTimesheet = async (req, res) => {
 // PATCH /api/timesheets/:id/approve
 const approveTimesheet = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const sheet = await Timesheet.findOne({ _id: req.params.id, organizationId });
+    const sheet = await Timesheet.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!sheet) return errorResponse(res, 'Timesheet not found', 404);
 
     sheet.status = 'approved';
-    sheet.reviewedBy = req.user._id;
+    sheet.reviewedBy = req.user.userId;
     sheet.reviewedAt = new Date();
     await sheet.save();
 
@@ -97,12 +94,11 @@ const approveTimesheet = async (req, res) => {
 // PATCH /api/timesheets/:id/reject
 const rejectTimesheet = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const sheet = await Timesheet.findOne({ _id: req.params.id, organizationId });
+    const sheet = await Timesheet.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!sheet) return errorResponse(res, 'Timesheet not found', 404);
 
     sheet.status = 'rejected';
-    sheet.reviewedBy = req.user._id;
+    sheet.reviewedBy = req.user.userId;
     sheet.reviewedAt = new Date();
     await sheet.save();
 
@@ -115,15 +111,15 @@ const rejectTimesheet = async (req, res) => {
 // PUT /api/timesheets/:id
 const updateTimesheet = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const sheet = await Timesheet.findOne({ _id: req.params.id, organizationId });
+    const sheet = await Timesheet.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!sheet) return errorResponse(res, 'Timesheet not found', 404);
 
     const { hours, billingType, notes, status, date } = req.body;
+    const { role, userId } = req.user;
 
-    // Normal update check
-    if (req.user._id.toString() !== sheet.user.toString()) {
-       const canReview = req.user.role?.level >= 50 || ['admin', 'pm', 'org_admin'].includes(req.user.role?.name?.toLowerCase());
+    // Ownership check
+    if (userId !== sheet.user.toString()) {
+       const canReview = ['admin', 'hr', 'project_manager', 'manager'].includes(role);
        if (!canReview) return errorResponse(res, 'Unauthorized to update this timesheet', 403);
     }
 
@@ -131,11 +127,12 @@ const updateTimesheet = async (req, res) => {
     if (billingType) sheet.billingType = billingType;
     if (notes !== undefined) sheet.notes = notes;
     if (date) sheet.date = new Date(date);
+    
     if (status && ['pending', 'approved', 'rejected'].includes(status)) {
-       const canReview = req.user.role?.level >= 50 || ['admin', 'pm', 'org_admin'].includes(req.user.role?.name?.toLowerCase());
+       const canReview = ['admin', 'hr', 'project_manager', 'manager'].includes(role);
        if (canReview) {
          sheet.status = status;
-         sheet.reviewedBy = req.user._id;
+         sheet.reviewedBy = userId;
          sheet.reviewedAt = new Date();
        }
     }
@@ -150,8 +147,7 @@ const updateTimesheet = async (req, res) => {
 // DELETE /api/timesheets/:id
 const deleteTimesheet = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const sheet = await Timesheet.findOneAndDelete({ _id: req.params.id, organizationId });
+    const sheet = await Timesheet.findOneAndDelete({ _id: req.params.id, ...req.orgFilter });
     if (!sheet) return errorResponse(res, 'Timesheet not found', 404);
     return successResponse(res, null, 'Timesheet deleted');
   } catch (err) {

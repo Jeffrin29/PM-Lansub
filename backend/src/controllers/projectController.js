@@ -23,14 +23,15 @@ exports.getProjects = async (req, res, next) => {
       ];
     }
 
-    // Members can only see projects they own or are part of
-    const role = req.user.role;
-    const isAdmin = role?.isSystemRole && ['super_admin', 'org_admin'].includes(role.name);
-    if (!isAdmin) {
-      filter.$or = [
-        { owner: req.user.userId },
-        { 'teamMembers.userId': req.user.userId },
-      ];
+    const { role, userId } = req.user;
+
+    // RBAC Filtering for Projects
+    if (role === 'employee') {
+      filter['teamMembers.userId'] = userId;
+    } else if (role === 'project_manager' || role === 'manager') {
+      // PMs see projects they own OR projects they are members of
+      filter.$or = filter.$or || [];
+      filter.$or.push({ owner: userId }, { 'teamMembers.userId': userId });
     }
 
     const [projects, total] = await Promise.all([
@@ -44,7 +45,7 @@ exports.getProjects = async (req, res, next) => {
       Project.countDocuments(filter),
     ]);
 
-    return successResponse(res, paginatedResponse(projects, total, page, limit), 'Projects fetched.');
+    return successResponse(res, paginatedResponse(projects || [], total || 0, page, limit), 'Projects fetched.');
   } catch (err) {
     next(err);
   }
@@ -68,7 +69,6 @@ exports.getProjectById = async (req, res, next) => {
 // ─── Create Project ───────────────────────────────────────────────────────────
 exports.createProject = async (req, res, next) => {
   try {
-    console.log("Project Body:", req.body)
     const {
       projectTitle, description, status, priority, budget,
       startDate, endDate, riskLevel, teamMembers, tags, milestones, completion,
@@ -139,14 +139,14 @@ exports.updateProject = async (req, res, next) => {
     const project = await Project.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!project) return errorResponse(res, 'Project not found.', 404);
 
-    // Only owner or admin can update
-    const isAdmin = req.user.role?.isSystemRole;
-    const isOwner = project.owner.toString() === req.user.userId;
+    const { role, userId } = req.user;
+    const isAdmin = role === 'admin' || role === 'hr';
+    const isOwner = project.owner.toString() === userId;
+    
     if (!isAdmin && !isOwner) {
       return errorResponse(res, 'Only the project owner or admin can update this project.', 403);
     }
 
-    console.log("Project Body:", req.body)
     const allowedFields = [
       'projectTitle', 'description', 'status', 'priority', 'budget',
       'startDate', 'endDate', 'riskLevel', 'completion',
@@ -162,7 +162,7 @@ exports.updateProject = async (req, res, next) => {
 
     // ✅ LOG ACTIVITY
     await logActivity({
-      userId: req.user.userId,
+      userId: userId,
       organizationId: req.user.organizationId,
       action: 'project:updated',
       entityType: 'project',
@@ -171,7 +171,7 @@ exports.updateProject = async (req, res, next) => {
     });
 
     await createAuditLog({
-      userId: req.user.userId,
+      userId: userId,
       organizationId: req.user.organizationId,
       action: 'UPDATE_PROJECT',
       entityType: 'project',
@@ -194,8 +194,10 @@ exports.deleteProject = async (req, res, next) => {
     const project = await Project.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!project) return errorResponse(res, 'Project not found.', 404);
 
-    const isAdmin = req.user.role?.isSystemRole;
-    const isOwner = project.owner.toString() === req.user.userId;
+    const { role, userId } = req.user;
+    const isAdmin = role === 'admin';
+    const isOwner = project.owner.toString() === userId;
+
     if (!isAdmin && !isOwner) {
       return errorResponse(res, 'Only the project owner or admin can delete this project.', 403);
     }
@@ -204,7 +206,7 @@ exports.deleteProject = async (req, res, next) => {
 
     // ✅ LOG ACTIVITY
     await logActivity({
-      userId: req.user.userId,
+      userId: userId,
       organizationId: req.user.organizationId,
       action: 'project:deleted',
       entityType: 'project',
@@ -213,7 +215,7 @@ exports.deleteProject = async (req, res, next) => {
     });
 
     await createAuditLog({
-      userId: req.user.userId,
+      userId: userId,
       organizationId: req.user.organizationId,
       action: 'DELETE_PROJECT',
       entityType: 'project',

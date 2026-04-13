@@ -6,11 +6,21 @@ const { successResponse, errorResponse } = require('../utils/helpers');
 // GET /api/reports - Consolidated report
 exports.getReports = async (req, res) => {
   try {
-    const { organizationId } = req.user;
+    const { organizationId, userId, role } = req.user;
     const orgId = new mongoose.Types.ObjectId(organizationId);
 
-    const projects = await Project.find({ organizationId: orgId });
-    const tasks = await Task.find({ organizationId: orgId });
+    // Role-scoped project filter
+    let projectFilter = { organizationId: orgId };
+    if (role === 'project_manager') {
+      projectFilter.$or = [
+        { owner: userId },
+        { 'teamMembers.userId': userId },
+      ];
+    }
+
+    const projects = await Project.find(projectFilter);
+    const projectIds = projects.map(p => p._id);
+    const tasks = await Task.find({ organizationId: orgId, projectId: { $in: projectIds } });
 
     const report = projects.map(project => {
       const projectTasks = tasks.filter(
@@ -48,7 +58,7 @@ exports.getReports = async (req, res) => {
       };
     });
 
-    return successResponse(res, report, 'Reports fetched successfully');
+    return successResponse(res, report || [], 'Reports fetched successfully');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }

@@ -9,55 +9,54 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem('lansub-auth');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.accessToken || parsed?.token || null;
-  } catch {
-    return null;
-  }
+  return localStorage.getItem('token');
 }
 
-export function setToken(token: string): void {
+export function setToken(token: string, user?: any): void {
   if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem('lansub-auth');
-    const parsed = raw ? JSON.parse(raw) : {};
-    parsed.accessToken = token;
-    localStorage.setItem('lansub-auth', JSON.stringify(parsed));
-  } catch { }
+  localStorage.setItem('token', token);
+  if (user) {
+    localStorage.setItem('user', JSON.stringify(user));
+  }
 }
 
 export function clearToken(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem('lansub-auth');
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
 }
 
 // ── Core request ─────────────────────────────────────────────────────────────
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {
+export async function request<T = any>(path: string, options: any = {}): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  
+  if (token) {
+    console.log("SENDING TOKEN:", token.substring(0, 10) + "...");
+  }
+
+  const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...options.headers,
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const res = await fetch(url, { ...options, headers });
 
-  if (res.status === 401) {
-    clearToken();
-    if (typeof window !== 'undefined') window.location.href = '/auth';
-    throw new Error('Unauthorized – redirecting to login');
+  let json: any = null;
+  try {
+    json = await res.json();
+  } catch (e) {
+    json = null;
   }
 
-  const json = await res.json();
   if (!res.ok) {
-    console.error("API Error:", json.message);
-    return null as any;
+    console.error("API Error:", json?.message || "Request failed");
+    throw new Error(json?.message || "Request failed");
   }
-  return json;
+
+  return json as T;
 }
 
 // ── HTTP convenience ─────────────────────────────────────────────────────────
@@ -75,10 +74,10 @@ export const api = {
 // Auth
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<{ data: { accessToken: string; user: unknown } }>('/auth/login', { email, password }),
+    api.post<{ token: string; user: any }>('/auth/login', { email, password }),
   register: (payload: unknown) =>
-    api.post<{ data: { accessToken: string; user: unknown } }>('/auth/register', payload),
-  me: () => api.get<{ data: unknown }>('/auth/me'),
+    api.post<{ token: string; user: any }>('/auth/register', payload),
+  me: () => api.get<any>('/auth/me'),
 };
 
 // Projects
@@ -165,6 +164,7 @@ export const dashboardApi = {
   projectProgress: () => api.get<any>('/dashboard/project-progress'),
   workload: () => api.get<any>('/dashboard/workload'),
   costAnalysis: () => api.get<any>('/dashboard/cost-analysis'),
+  recentActivity: (limit = 10) => api.get<any>(`/dashboard/recent-activity?limit=${limit}`),
 };
 
 // HRMS / HR Admin
