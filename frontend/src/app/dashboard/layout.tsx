@@ -8,7 +8,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="h-screen flex bg-white dark:bg-black text-black dark:text-white overflow-hidden">
+    <div className="h-screen flex bg-[#0b0f19] text-white overflow-hidden">
 
       {/* SIDEBAR */}
 
@@ -28,8 +28,10 @@ export default function DashboardLayout({
 
         {/* SCROLLABLE PAGE CONTENT */}
 
-        <main className="flex-1 overflow-y-auto p-8">
-          {children}
+        <main className="flex-1 overflow-y-auto py-8">
+          <div className="w-full max-w-7xl mx-auto px-6">
+            {children}
+          </div>
         </main>
 
       </div>

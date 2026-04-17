@@ -5,11 +5,39 @@ const { logActivity } = require('../services/activityService');
 const { sendNotification } = require('../services/notificationService');
 const { errorResponse, successResponse } = require('../utils/helpers');
 
-// Helper: find the HR employee record that belongs to the logged-in user
+// Helper: find or JIT-create the HR employee record for the logged-in user
 const getMyEmployee = async (req) => {
   const orgId = req.user?.organizationId;
-  const userId = req.user?.userId || req.user?._id;
-  return HrEmployee.findOne({ organizationId: orgId, userId }).lean();
+  const userId = req.user?.userId || req.user?._id?.toString();
+
+  if (!userId || !orgId) {
+    console.error('[leaveController] Missing userId or orgId:', req.user);
+    return null;
+  }
+
+  let emp = await HrEmployee.findOne({ organizationId: orgId, userId }).lean();
+
+  if (!emp) {
+    console.warn(`[leaveController] No employee record for user ${userId}. Creating JIT record...`);
+    try {
+      const created = await HrEmployee.create({
+        organizationId: orgId,
+        userId,
+        name: req.user.name || 'Employee',
+        email: req.user.email || 'unknown@domain.com',
+        role: req.user.role || 'employee',
+        status: 'active',
+        department: 'General',
+      });
+      emp = created.toObject ? created.toObject() : created;
+      console.log(`[leaveController] JIT employee created: ${emp._id}`);
+    } catch (jitErr) {
+      console.error('[leaveController] JIT employee creation failed:', jitErr.message);
+      return null;
+    }
+  }
+
+  return emp;
 };
 
 exports.applyLeave = async (req, res) => {
@@ -17,7 +45,6 @@ exports.applyLeave = async (req, res) => {
     const orgId = req.user?.organizationId;
     const userId = req.user?.userId || req.user?._id;
     const emp = await getMyEmployee(req);
-    if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
     const { leaveType, startDate, endDate, reason } = req.body;
     if (!leaveType || !startDate || !endDate) {
@@ -66,14 +93,22 @@ exports.applyLeave = async (req, res) => {
 exports.getMyLeaves = async (req, res) => {
   try {
     const orgId = req.user?.organizationId;
-    const userId = req.user?.userId || req.user?._id;
-    const emp = await getMyEmployee(req);
-    if (!emp) return errorResponse(res, 'Employee record not found.', 404);
+    const userId = req.user?.userId || req.user?._id?.toString();
 
-    const leaves = await Leave.find({ organizationId: orgId, user: userId }).sort({ createdAt: -1 }).lean();
-    console.log("Leaves History:", leaves);
+    console.log(`[leaveController] getMyLeaves - userId: ${userId}, orgId: ${orgId}`);
+
+    // JIT create employee if needed (background, don't block response)
+    getMyEmployee(req).catch(err => console.warn('[leaveController] JIT emp warn:', err.message));
+
+    // Fetch leaves by userId directly
+    const leaves = await Leave.find({ organizationId: orgId, user: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log(`[leaveController] Found ${leaves.length} leaves for user ${userId}`);
     return successResponse(res, leaves || [], 'Leaves fetched.');
   } catch (err) {
+    console.error('[leaveController] getMyLeaves error:', err);
     return errorResponse(res, err.message, 500);
   }
 };

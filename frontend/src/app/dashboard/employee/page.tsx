@@ -105,13 +105,31 @@ export default function EmployeePage() {
                 attendanceApi.getMonthlyChart()
             ]);
 
-            // Fix parsing to use data.data with safety fallbacks
-            setStats(s?.data?.data || s?.data || null);
-            setAttendance(Array.isArray(a?.data?.data) ? a.data.data : Array.isArray(a?.data) ? a.data : []);
-            setLeaves(Array.isArray(l?.data?.data) ? l.data.data : Array.isArray(l?.data) ? l.data : []);
-            setChartData(Array.isArray(c?.data?.data) ? c.data.data : Array.isArray(c?.data) ? c.data : []);
+            console.log('[EmployeePage] Stats raw:', s);
+            console.log('[EmployeePage] Attendance raw:', a);
+            console.log('[EmployeePage] Leaves raw:', l);
+            console.log('[EmployeePage] Chart raw:', c);
+
+            // Standard envelope: { success: true, data: { ... } } or { success: true, data: [...] }
+            // Stats is an object
+            const statsData = s?.data?.data ?? s?.data ?? null;
+            setStats(statsData);
+
+            // Attendance and leaves are arrays
+            const attData = a?.data?.data ?? a?.data ?? [];
+            setAttendance(Array.isArray(attData) ? attData : []);
+
+            const leavesData = l?.data?.data ?? l?.data ?? [];
+            setLeaves(Array.isArray(leavesData) ? leavesData : []);
+
+            const chartRaw = c?.data?.data ?? c?.data ?? [];
+            setChartData(Array.isArray(chartRaw) ? chartRaw : []);
+
+            console.log('[EmployeePage] Parsed stats:', statsData);
+            console.log('[EmployeePage] Parsed attendance count:', Array.isArray(attData) ? attData.length : 0);
+            console.log('[EmployeePage] Parsed leaves count:', Array.isArray(leavesData) ? leavesData.length : 0);
         } catch (err) {
-            console.error('Failed to fetch employee data', err);
+            console.error('[EmployeePage] Failed to fetch data:', err);
         } finally {
             setLoading(false);
         }

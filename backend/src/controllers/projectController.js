@@ -6,48 +6,21 @@ const { createAuditLog } = require('../utils/auditLog');
 const path = require('path');
 
 // ─── List Projects ────────────────────────────────────────────────────────────
-exports.getProjects = async (req, res, next) => {
+exports.getProjects = async (req, res) => {
   try {
-    const { skip, limit, page, sort } = getPagination(req.query);
-    const { status, priority, riskLevel, search, owner } = req.query;
+    console.log("ORG ID:", req.organizationId);
 
-    const filter = { ...req.orgFilter };
-    if (status) filter.status = status;
-    if (priority) filter.priority = priority;
-    if (riskLevel) filter.riskLevel = riskLevel;
-    if (owner) filter.owner = owner;
-    if (search) {
-      filter.$or = [
-        { projectTitle: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-      ];
-    }
+    const projects = await Project.find({
+      organizationId: req.organizationId
+    })
+    .populate("owner", "name email")
+    .sort({ createdAt: -1 });
 
-    const { role, userId } = req.user;
+    console.log("PROJECTS FOUND:", projects.length);
 
-    // RBAC Filtering for Projects
-    if (role === 'employee') {
-      filter['teamMembers.userId'] = userId;
-    } else if (role === 'project_manager' || role === 'manager') {
-      // PMs see projects they own OR projects they are members of
-      filter.$or = filter.$or || [];
-      filter.$or.push({ owner: userId }, { 'teamMembers.userId': userId });
-    }
-
-    const [projects, total] = await Promise.all([
-      Project.find(filter)
-        .populate('owner', 'name email avatar')
-        .populate('teamMembers.userId', 'name email avatar')
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Project.countDocuments(filter),
-    ]);
-
-    return successResponse(res, paginatedResponse(projects || [], total || 0, page, limit), 'Projects fetched.');
+    res.json(projects);
   } catch (err) {
-    next(err);
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -70,12 +43,14 @@ exports.getProjectById = async (req, res, next) => {
 exports.createProject = async (req, res, next) => {
   try {
     const {
-      projectTitle, description, status, priority, budget,
+      name, projectTitle, description, status, priority, budget,
       startDate, endDate, riskLevel, teamMembers, tags, milestones, completion,
     } = req.body;
 
+    const finalName = name || projectTitle;
+
     const project = await Project.create({
-      projectTitle,
+      name: finalName,
       description,
       organizationId: req.user.organizationId,
       owner: req.user.userId,
@@ -99,7 +74,7 @@ exports.createProject = async (req, res, next) => {
       action: 'project:created',
       entityType: 'project',
       entityId: project._id,
-      description: `Project created: "${projectTitle}"`
+      description: `Project created: "${finalName}"`
     });
 
     // Notify team members
@@ -109,7 +84,7 @@ exports.createProject = async (req, res, next) => {
           userId: member.userId,
           organizationId: req.user.organizationId,
           title: 'Added to Project',
-          message: `You have been added to project: "${projectTitle}"`,
+          message: `You have been added to project: "${finalName}"`,
           type: 'project_created',
           link: { type: 'project', id: project._id }
         });
@@ -122,7 +97,7 @@ exports.createProject = async (req, res, next) => {
       action: 'CREATE_PROJECT',
       entityType: 'project',
       entityId: project._id,
-      description: `Project created: "${projectTitle}"`,
+      description: `Project created: "${finalName}"`,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
@@ -148,14 +123,17 @@ exports.updateProject = async (req, res, next) => {
     }
 
     const allowedFields = [
-      'projectTitle', 'description', 'status', 'priority', 'budget',
+      'name', 'projectTitle', 'description', 'status', 'priority', 'budget',
       'startDate', 'endDate', 'riskLevel', 'completion',
       'teamMembers', 'tags', 'milestones', 'owner',
     ];
     const before = project.toObject();
 
     allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) project[field] = req.body[field];
+      if (req.body[field] !== undefined) {
+        if (field === 'projectTitle') project.name = req.body[field];
+        else project[field] = req.body[field];
+      }
     });
 
     await project.save();
@@ -167,7 +145,7 @@ exports.updateProject = async (req, res, next) => {
       action: 'project:updated',
       entityType: 'project',
       entityId: project._id,
-      description: `Project updated: "${project.projectTitle}"`
+      description: `Project updated: "${project.name}"`
     });
 
     await createAuditLog({
@@ -211,7 +189,7 @@ exports.deleteProject = async (req, res, next) => {
       action: 'project:deleted',
       entityType: 'project',
       entityId: project._id,
-      description: `Project deleted: "${project.projectTitle}"`
+      description: `Project deleted: "${project.name}"`
     });
 
     await createAuditLog({
@@ -220,7 +198,7 @@ exports.deleteProject = async (req, res, next) => {
       action: 'DELETE_PROJECT',
       entityType: 'project',
       entityId: project._id,
-      description: `Project deleted: "${project.projectTitle}"`,
+      description: `Project deleted: "${project.name}"`,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });

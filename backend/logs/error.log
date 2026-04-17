@@ -17,3 +17,6 @@
 [2026-04-09 09:30:48] [31merror[39m: [31m[POST] /api/auth/login — TypeError: Cannot read properties of undefined (reading 'toString')[39m
 [31m    at buildTokens (C:\PM-Lan\backend\src\controllers\authController.js:27:41)[39m
 [31m    at exports.login (C:\PM-Lan\backend\src\controllers\authController.js:195:43)[39m
+[2026-04-13 16:13:58] [31merror[39m: [31mUncaught Exception: listen EADDRINUSE: address already in use :::5000[39m
+[2026-04-13 16:27:53] [31merror[39m: [31mUncaught Exception: listen EADDRINUSE: address already in use :::5000[39m
+[2026-04-13 16:30:02] [31merror[39m: [31mUncaught Exception: listen EADDRINUSE: address already in use :::5000[39m

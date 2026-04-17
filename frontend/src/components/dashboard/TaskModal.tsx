@@ -1,111 +1,210 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { projectsApi, adminApi, tasksApi } from "../../lib/api";
-import { FiX, FiCalendar, FiClock, FiUser, FiFlag, FiLayers, FiActivity } from "react-icons/fi";
+import { projectsApi, tasksApi, usersDropdownApi } from "../../lib/api";
+import { FiX } from "react-icons/fi";
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function getCurrentUser(): any | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Safe string coercion — prevents ".trim() of undefined" crashes
+function safeStr(val: any): string {
+  if (val === null || val === undefined) return "";
+  return String(val);
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface FormData {
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  startDate: string;
+  dueDate: string;
+  estimatedHours: number;
+  progress: number;
+}
+
+const EMPTY_FORM: FormData = {
+  title: "",
+  description: "",
+  status: "todo",
+  priority: "medium",
+  startDate: "",
+  dueDate: "",
+  estimatedHours: 0,
+  progress: 0,
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function TaskModal({ task, onClose, onSave }: any) {
-  const [loading, setLoading] = useState(false);
-  const [projects, setProjects] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  
-  // Storing full objects as requested
-  const [selectedProject, setSelectedProject] = useState<any>(null);
-  const [selectedUser,    setSelectedUser]    = useState<any>(null);
+  const currentUser = getCurrentUser();
+  const userRole: string = (
+    currentUser?.role?.name || currentUser?.role || "employee"
+  )
+    .toString()
+    .toLowerCase();
+  const isEmployee = userRole === "employee";
 
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    status: "todo",
-    priority: "medium",
-    startDate: "",
-    dueDate: "",
-    estimatedHours: 0,
-    progress: 0
-  });
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [projects, setProjects]       = useState<any[]>([]);
+  const [users, setUsers]             = useState<any[]>([]);
+  const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [selectedUser, setSelectedUser]       = useState<any>(null);
+  const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
 
   const isEdit = !!task;
 
+  // ── Load projects + users ─────────────────────────────────────────────────
   useEffect(() => {
-    async function fetchData() {
+    let cancelled = false;
+    async function load() {
       try {
-        const [projRes, userRes] = await Promise.all([
+        // Both endpoints are accessible to ALL authenticated users
+        const [projRes, usersRes] = await Promise.all([
           projectsApi.getAll(),
-          adminApi.getUsers().catch(() => ({ data: { data: [] } }))
+          usersDropdownApi.getAll(),
         ]);
-        const projectList = projRes?.data?.data ?? projRes?.data ?? [];
-        const userList = userRes?.data?.data ?? userRes?.data ?? [];
+
+        if (cancelled) return;
+
+        // Normalise project list
+        const projectList: any[] =
+          projRes?.data?.data ?? projRes?.data ?? projRes ?? [];
+        console.log("[TaskModal] Projects:", projectList.length);
+
+        // Normalise user list (GET /api/users returns paginated { data: [...] })
+        const rawUsers =
+          usersRes?.data?.data ?? usersRes?.data ?? usersRes ?? [];
+        const userList: any[] = Array.isArray(rawUsers) ? rawUsers : [];
+        console.log("[TaskModal] Users:", userList);
+
         setProjects(projectList);
         setUsers(userList);
 
-        // If editing, map initial objects
+        // ── Pre-fill if editing ─────────────────────────────────────────────
         if (task) {
-          const p = projectList.find((x: any) => x._id === (task.projectId?._id || task.projectId));
-          const u = userList.find((x: any) => x._id === (task.assignedTo?._id || task.assignedTo));
-          if (p) setSelectedProject(p);
-          if (u) setSelectedUser(u);
+          const matchProject = projectList.find(
+            (p: any) => p._id === (task.projectId?._id || task.projectId)
+          );
+          if (matchProject) setSelectedProject(matchProject);
+
+          const taskAssigneeId =
+            task.assignedTo?._id?.toString() || task.assignedTo?.toString();
+          const matchUser = userList.find(
+            (u: any) => u._id?.toString() === taskAssigneeId
+          );
+          if (matchUser) setSelectedUser(matchUser);
+        } else if (isEmployee && currentUser) {
+          // Employee creating a new task → auto-assign to self
+          const selfId = currentUser.id || currentUser._id;
+          const selfUser = userList.find(
+            (u: any) => u._id?.toString() === selfId?.toString()
+          );
+          if (selfUser) {
+            console.log("[TaskModal] Auto-assigned to self:", selfUser.name);
+            setSelectedUser(selfUser);
+          }
         }
       } catch (err) {
-        console.error("Failed to fetch dependencies", err);
+        console.error("[TaskModal] Failed to load dropdown data:", err);
       }
     }
-    fetchData();
-  }, [task]);
+    load();
+    return () => { cancelled = true; };
+  }, [task]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Pre-fill form when editing ────────────────────────────────────────────
   useEffect(() => {
     if (task) {
       setFormData({
-        title: task.title || "",
-        description: task.description || "",
-        status: task.status || "todo",
-        priority: task.priority?.toLowerCase() || "medium",
-        startDate: task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : "",
-        dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : "",
-        estimatedHours: task.estimatedHours || 0,
-        progress: task.progress || 0
+        title:          safeStr(task.title),
+        description:    safeStr(task.description),
+        status:         safeStr(task.status) || "todo",
+        priority:       safeStr(task.priority).toLowerCase() || "medium",
+        startDate:      task.startDate
+          ? new Date(task.startDate).toISOString().split("T")[0]
+          : "",
+        dueDate:        task.dueDate
+          ? new Date(task.dueDate).toISOString().split("T")[0]
+          : "",
+        estimatedHours: Number(task.estimatedHours) || 0,
+        progress:       Number(task.progress) || 0,
       });
+    } else {
+      setFormData(EMPTY_FORM);
     }
   }, [task]);
 
-  const handleChange = (e: any) => {
+  // ── Input handlers ────────────────────────────────────────────────────────
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    
+
     if (name === "projectId") {
-      const p = projects.find(x => x._id === value);
+      const p = projects.find((x: any) => x._id === value);
       setSelectedProject(p || null);
-    } else if (name === "assignedTo") {
-      const u = users.find(x => x._id === value);
-      setSelectedUser(u || null);
-    } else {
-      setFormData(prev => ({ 
-        ...prev, 
-        [name]: name === "progress" || name === "estimatedHours" ? Number(value) : value 
-      }));
-    }
-  };
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    
-    // Extract _id before sending API request as requested
-    const projectId = selectedProject?._id;
-    const assignedTo = selectedUser?._id;
-
-    if (!formData.title || !projectId) {
-      alert("Title and Project are required");
       return;
     }
 
-    setLoading(true);
+    if (name === "assignedTo") {
+      if (isEmployee) return; // employees can't change assignment
+      const u = users.find((x: any) => x._id === value);
+      setSelectedUser(u || null);
+      return;
+    }
 
-    // Normalize before API call
+    setFormData((prev) => ({
+      ...prev,
+      [name]:
+        name === "progress" || name === "estimatedHours"
+          ? Number(value)
+          : value,
+    }));
+  };
+
+  // ── Submit ────────────────────────────────────────────────────────────────
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    // Null-safe validation
+    const titleVal = safeStr(formData.title).trim();
+    if (!titleVal) {
+      setError("Task title is required");
+      return;
+    }
+
+    const projectId = selectedProject?._id;
+    if (!projectId) {
+      setError("Please select a project");
+      return;
+    }
+
+    // assignedTo: use the _id (User._id) directly — task schema refs User
+    const assignedTo = selectedUser?._id || null;
+
     const payload = {
       ...formData,
+      title:      titleVal,
       projectId,
-      assignedTo: assignedTo || null,
-      status: formData.status.toLowerCase().replace(/\s+/g, "_"), // e.g. "In Progress" -> "in_progress"
-      priority: formData.priority.toLowerCase() // "High" -> "high"
+      assignedTo,
+      status:     safeStr(formData.status).toLowerCase().replace(/\s+/g, "_"),
+      priority:   safeStr(formData.priority).toLowerCase(),
     };
+
+    console.log("[TaskModal] Submitting:", payload);
+    setLoading(true);
 
     try {
       if (isEdit) {
@@ -116,96 +215,107 @@ export default function TaskModal({ task, onClose, onSave }: any) {
       onSave();
       onClose();
     } catch (err: any) {
-      alert("Failed to save task: " + (err.response?.data?.message || err.message));
+      const msg =
+        err?.response?.data?.message || err?.message || "Unknown error";
+      setError("Failed to save task: " + msg);
     } finally {
       setLoading(false);
     }
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-[100] p-4 font-sans">
-      <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in duration-200">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-[100] p-4">
+      <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-500/20">
-              <FiLayers size={20} />
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">
-                {isEdit ? "Refine Task" : "Assemble Task"}
-              </h2>
-              <p className="text-[10px] text-gray-400 uppercase font-black tracking-widest mt-0.5">Task Engineering Unit</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all">
-            <FiX size={24} />
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-zinc-800">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            {isEdit ? "Update Task" : "Create New Task"}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-red-500 rounded-lg transition-all"
+          >
+            <FiX size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-
-            {/* Project Selection */}
-            <div className="md:col-span-2 group">
-              <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-blue-500 transition-colors">
-                Parent Project *
-              </label>
-              <select
-                name="projectId"
-                value={selectedProject?._id || ""}
-                onChange={handleChange}
-                required
-                className="w-full h-14 px-5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-black text-sm font-bold transition-all focus:border-blue-500 outline-none appearance-none"
-              >
-                <option value="">Select Target project</option>
-                {projects.map((p: any) => (
-                  <option key={p._id} value={p._id}>{p.projectTitle}</option>
-                ))}
-              </select>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Error Banner */}
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm p-3 rounded-xl flex items-center gap-2">
+              <span>⚠️</span> {error}
             </div>
+          )}
 
-            {/* Title */}
-            <div className="md:col-span-2 group">
-              <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-blue-500 transition-colors">
-                Mission Title *
-              </label>
-              <input
-                name="title"
-                placeholder="Describe the primary objective..."
-                value={formData.title}
-                onChange={handleChange}
-                required
-                className="w-full h-14 px-5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-black text-sm font-bold transition-all focus:border-blue-500 outline-none placeholder:text-gray-300 dark:placeholder:text-zinc-700"
-              />
-            </div>
+          {/* Project */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Project <span className="text-red-500">*</span>
+            </label>
+            <select
+              name="projectId"
+              value={selectedProject?._id || ""}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            >
+              <option value="">— Select Project —</option>
+              {projects.map((p: any) => (
+                <option key={p._id} value={p._id}>
+                  {p.name || p.projectTitle || "Untitled"}
+                </option>
+              ))}
+            </select>
+            {projects.length === 0 && (
+              <p className="text-xs text-amber-500 mt-1">
+                Loading projects… or no projects found for your account.
+              </p>
+            )}
+          </div>
 
-            {/* Description */}
-            <div className="md:col-span-2 group">
-              <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-blue-500 transition-colors">
-                Strategic Brief
-              </label>
-              <textarea
-                name="description"
-                rows={3}
-                placeholder="Outline technical requirements or context..."
-                value={formData.description}
-                onChange={handleChange}
-                className="w-full p-5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-black text-sm font-bold transition-all focus:border-blue-500 outline-none resize-none placeholder:text-gray-300 dark:placeholder:text-zinc-700"
-              />
-            </div>
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Task Title <span className="text-red-500">*</span>
+            </label>
+            <input
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              placeholder="Enter task name…"
+              required
+              className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            />
+          </div>
 
-            {/* Status */}
-            <div className="group">
-              <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-blue-500 transition-colors">
-                Deployment Status
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Description
+            </label>
+            <textarea
+              name="description"
+              rows={3}
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="Task details…"
+              className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition resize-none"
+            />
+          </div>
+
+          {/* Status | Priority */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Status
               </label>
               <select
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                className="w-full h-14 px-5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-black text-sm font-bold transition-all focus:border-blue-500 outline-none"
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
               >
                 <option value="backlog">Backlog</option>
                 <option value="todo">To Do</option>
@@ -213,123 +323,128 @@ export default function TaskModal({ task, onClose, onSave }: any) {
                 <option value="complete">Complete</option>
               </select>
             </div>
-
-            {/* Priority */}
-            <div className="group">
-              <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-blue-500 transition-colors">
-                Priority Matrix
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Priority
               </label>
               <select
                 name="priority"
                 value={formData.priority}
                 onChange={handleChange}
-                className="w-full h-14 px-5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-black text-sm font-bold transition-all focus:border-blue-500 outline-none"
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
               >
-                <option value="low">Low Priority</option>
-                <option value="medium">Medium Priority</option>
-                <option value="high">High Priority</option>
-                <option value="urgent">CRITICAL (Urgent)</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
               </select>
             </div>
+          </div>
 
-            {/* Assignee */}
-            <div className="group">
-              <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-blue-500 transition-colors">
-                Operational Lead
+          {/* Assigned To | Progress */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Assigned To
               </label>
               <select
                 name="assignedTo"
                 value={selectedUser?._id || ""}
                 onChange={handleChange}
-                className="w-full h-14 px-5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-black text-sm font-bold transition-all focus:border-blue-500 outline-none"
+                disabled={isEmployee}
+                title={isEmployee ? "Employees are auto-assigned to themselves" : ""}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:opacity-60"
               >
-                <option value="">Unassigned</option>
+                <option value="">— Unassigned —</option>
                 {users.map((u: any) => (
-                  <option key={u._id} value={u._id}>{u.name}</option>
+                  <option key={u._id} value={u._id}>
+                    {u.name || u.email}
+                  </option>
                 ))}
               </select>
+              {users.length === 0 && (
+                <p className="text-xs text-amber-500 mt-1">Loading users…</p>
+              )}
+              {isEmployee && selectedUser && (
+                <p className="text-xs text-blue-500 mt-1">
+                  Auto-assigned to you
+                </p>
+              )}
             </div>
-
-            {/* Progress */}
-            <div className="group">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] group-focus-within:text-blue-500 transition-colors">
-                  Progress Percentage
-                </label>
-                <span className="text-sm font-black text-blue-600">{formData.progress}%</span>
-              </div>
-              <div className="flex items-center gap-4 h-14">
-                <input
-                  type="range"
-                  name="progress"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={formData.progress}
-                  onChange={handleChange}
-                  className="flex-1 h-2 bg-gray-100 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-600 border-none"
-                />
-                <input
-                  type="number"
-                  name="progress"
-                  min="0"
-                  max="100"
-                  value={formData.progress}
-                  onChange={handleChange}
-                  className="w-20 h-10 text-center text-sm font-bold border-2 border-gray-100 dark:border-zinc-800 rounded-xl bg-white dark:bg-black"
-                />
-              </div>
-            </div>
-
-            {/* Start Date */}
-            <div className="group">
-              <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-blue-500 transition-colors">
-                Commencement Date
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Progress (%)
               </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleChange}
-                  className="w-full h-14 px-5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-black text-sm font-bold transition-all focus:border-blue-500 outline-none color-scheme-light dark:color-scheme-dark"
-                />
-              </div>
+              <input
+                type="number"
+                name="progress"
+                min={0}
+                max={100}
+                value={formData.progress}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
             </div>
-
-            {/* Due Date */}
-            <div className="group">
-              <label className="text-[10px] font-black text-gray-400 dark:text-zinc-500 uppercase tracking-[0.2em] mb-2 block group-focus-within:text-blue-500 transition-colors">
-                Deadline
-              </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  name="dueDate"
-                  value={formData.dueDate}
-                  onChange={handleChange}
-                  className="w-full h-14 px-5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 bg-gray-50/50 dark:bg-black text-sm font-bold transition-all focus:border-blue-500 outline-none color-scheme-light dark:color-scheme-dark"
-                />
-              </div>
-            </div>
-
           </div>
 
-          {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-4 pt-8 border-t border-gray-100 dark:border-zinc-800">
+          {/* Start Date | Due Date */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                name="startDate"
+                value={formData.startDate}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Due Date
+              </label>
+              <input
+                type="date"
+                name="dueDate"
+                value={formData.dueDate}
+                onChange={handleChange}
+                className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
+          </div>
+
+          {/* Estimated Hours */}
+          <div>
+            <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+              Estimated Hours
+            </label>
+            <input
+              type="number"
+              name="estimatedHours"
+              min={0}
+              value={formData.estimatedHours}
+              onChange={handleChange}
+              className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-zinc-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-8 py-3.5 rounded-2xl border-2 border-gray-100 dark:border-zinc-800 text-sm font-black text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all uppercase tracking-widest"
+              className="px-5 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-10 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-black shadow-2xl shadow-blue-600/30 transition-all hover:-translate-y-1 active:scale-95 disabled:opacity-50 disabled:pointer-events-none uppercase tracking-widest"
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition disabled:opacity-50"
             >
-              {loading ? "Synchronizing..." : isEdit ? "Update Mission" : "Authorize Mission"}
+              {loading ? "Saving…" : isEdit ? "Update Task" : "Create Task"}
             </button>
           </div>
         </form>

@@ -8,6 +8,7 @@ const User = require("../models/User");
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
+    const headerOrgId = req.headers['x-organization-id'];
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "No token provided" });
@@ -16,47 +17,60 @@ const authenticate = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const secret = process.env.JWT_SECRET || "secret";
     
-    const decoded = jwt.verify(token, secret);
-    console.log("Decoded JWT:", decoded);
-    console.log("Org ID from Token:", decoded.organizationId);
+    let decoded;
+    try {
+      decoded = jwt.verify(token, secret);
+    } catch (err) {
+      console.error("JWT Verify Fail:", err.message);
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    console.log("--- AUTH DEBUG ---");
+    console.log("Decoded User ID:", decoded.userId);
+    console.log("Decoded Org ID:", decoded.organizationId);
     
-    // Always fetch fresh user from DB to ensure role/org consistency
-    // Standardize to userId, organizationId, and role (from roleId.name)
     const user = await User.findById(decoded.userId).populate("roleId");
     
     if (!user) {
       return res.status(401).json({ message: "User no longer exists" });
     }
 
-    if (!user.roleId || !user.roleId.name) {
-      return res.status(500).json({ message: "User role configuration error" });
+    // Role Normalization: "Project Manager" -> "project_manager"
+    let rawRole = 'employee';
+    if (user.roleId && user.roleId.name) {
+      rawRole = user.roleId.name;
+    } else if (user.role) {
+      rawRole = user.role;
     }
+    const normalizedRole = rawRole.toLowerCase().trim().replace(/\s+/g, '_');
+
+    // Organization ID normalization
+    const organizationId = (user.organizationId || decoded.organizationId || headerOrgId)?.toString();
 
     // Attach standardized user object
     req.user = {
       _id: user._id,
+      id: user._id.toString(),
       userId: user._id.toString(),
-      role: user.roleId.name.toLowerCase(),
-      organizationId: user.organizationId ? user.organizationId.toString() : null,
+      role: normalizedRole,
+      organizationId: organizationId,
       email: user.email,
       name: user.name
     };
 
-    // Safety check: ensure organizationId exists
+    console.log("Normalized Role:", req.user.role);
+    console.log("Active OrgId:", req.user.organizationId);
+
     if (!req.user.organizationId) {
-      console.error("Organization context is missing for user:", user.email);
-      return res.status(403).json({
-        message: "Organization context is missing"
-      });
+      console.error("Organization context missing for:", user.email);
+      return res.status(403).json({ message: "Organization context is missing" });
     }
 
-    // Also attach organizationId directly for convenience (used by some middleware)
     req.organizationId = req.user.organizationId;
-
     next();
   } catch (err) {
-    console.error("JWT AUTH ERROR:", err.message);
-    return res.status(401).json({ message: "Invalid or expired access token" });
+    console.error("JWT AUTH ERROR:", err);
+    return res.status(401).json({ message: "Authentication failed" });
   }
 };
 

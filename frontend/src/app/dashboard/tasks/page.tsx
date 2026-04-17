@@ -52,7 +52,7 @@ function normaliseTask(raw: any, idx: number): Task {
     endDate:   raw.dueDate ?? raw.endDate,
     progress:  raw.progress ?? 0,
     project:   typeof raw.projectId === "object"
-      ? (raw.projectId?.projectTitle ?? "")
+      ? (raw.projectId?.name || raw.projectId?.projectTitle || "")
       : (raw.project ?? ""),
     risk:      raw.riskLevel ?? raw.risk ?? "low",
   };

@@ -8,7 +8,10 @@ const { successResponse, errorResponse } = require('../utils/helpers');
 // GET /api/dashboard/summary
 const getSummary = async (req, res) => {
   try {
-    const { role, userId } = req.user;
+    const { role, userId, organizationId } = req.user;
+    console.log(`[DASHBOARD DEBUG] Summary Request by ${userId} (${role}) in Org ${organizationId}`);
+    console.log(`[DEBUG CONTEXT] User Object:`, req.user);
+    console.log(`[DEBUG CONTEXT] Org Filter:`, req.orgFilter);
 
     let projectFilter = { ...req.orgFilter };
     let taskFilter = { ...req.orgFilter };
@@ -17,34 +20,44 @@ const getSummary = async (req, res) => {
       projectFilter['teamMembers.userId'] = userId;
       taskFilter.assignedTo = userId;
     } else if (role === 'project_manager' || role === 'manager') {
-      projectFilter.owner = userId;
+      // Consistent with projectController: PMs see owned or member projects
+      projectFilter.$or = [{ owner: userId }, { 'teamMembers.userId': userId }];
       taskFilter.$or = [{ assignedTo: userId }, { createdBy: userId }];
     }
 
     const [totalProjects, activeProjects, allTasks, overdueTasksCount] = await Promise.all([
       Project.countDocuments(projectFilter),
-      Project.countDocuments({ ...projectFilter, status: 'active' }),
+      Project.countDocuments({ 
+        ...projectFilter, 
+        status: { $in: ['active', 'in_progress', 'review'] } 
+      }),
       Task.find(taskFilter).select('status dueDate').lean(),
       Task.countDocuments({
         ...taskFilter,
-        status: { $ne: 'complete' },
+        status: { $nin: ['complete', 'completed'] },
         dueDate: { $lt: new Date() },
       }),
     ]);
 
     const tasksArr = allTasks || [];
-    const completedTasks = tasksArr.filter((t) => t.status === 'complete' || t.status === 'completed').length;
+    const completedTasks = tasksArr.filter((t) => 
+      ['complete', 'completed'].includes(String(t.status).toLowerCase())
+    ).length;
     const teamUtilization =
       tasksArr.length > 0 ? Math.round((completedTasks / tasksArr.length) * 100) : 0;
 
-    return successResponse(res, {
+    const data = {
       totalProjects: totalProjects || 0,
       activeProjects: activeProjects || 0,
       completedTasks: completedTasks || 0,
       overdueTasks: overdueTasksCount || 0,
       teamUtilization: teamUtilization || 0,
-    });
+    };
+
+    console.log("[DASHBOARD_RES] Summary:", data);
+    return successResponse(res, data);
   } catch (err) {
+    console.error("[DASHBOARD ERROR] getSummary:", err);
     return errorResponse(res, err.message, 500);
   }
 };
@@ -161,14 +174,14 @@ const getProjectProgress = async (req, res) => {
     }
 
     const projects = await Project.find(filter)
-      .select('projectTitle completionPercentage completion status')
+      .select('name completion completionPercentage status')   // Project.name
       .limit(10)
       .lean();
 
     const data = (projects || []).map((p) => ({
-      name: (p.projectTitle || '').length > 20
-        ? (p.projectTitle || '').slice(0, 18) + '…'
-        : (p.projectTitle || 'Untitled'),
+      name: (p.name || '').length > 20
+        ? (p.name || '').slice(0, 18) + '…'
+        : (p.name || 'Untitled'),
       progress: p.completionPercentage || p.completion || 0,
       status: p.status,
     }));
@@ -261,7 +274,7 @@ const getCostAnalysis = async (req, res) => {
     }
 
     const projectsArr = await Project.find(filter)
-      .select('projectTitle budget createdAt')
+      .select('name budget createdAt')   // Project.name is the correct field
       .lean();
 
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -308,7 +321,7 @@ const getBlockingAnalytics = async (req, res) => {
 
     const tasksArr = await Task.find(filter)
       .select('title blockedReason projectId')
-      .populate('projectId', 'projectTitle')
+      .populate('projectId', 'name')   // Project.name is the correct field
       .lean();
 
     const reasons = tasksArr.reduce((acc, t) => {
@@ -324,7 +337,7 @@ const getBlockingAnalytics = async (req, res) => {
         id: t._id,
         title: t.title,
         reason: t.blockedReason,
-        project: t.projectId?.projectTitle
+        project: t.projectId?.name || t.projectId?.projectTitle   // safe fallback
       }))
     });
   } catch (err) {

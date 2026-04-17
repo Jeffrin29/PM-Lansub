@@ -37,8 +37,11 @@ exports.checkIn = async (req, res) => {
         const late = now > officeStartTime;
         if (late) status = 'Late';
 
+        const emp = await HrEmployee.findOne({ userId, organizationId });
+
         const record = await Attendance.create({
             user: userId,
+            employeeId: emp?._id || null,
             organizationId,
             date: now,
             checkIn: now,
@@ -122,7 +125,10 @@ exports.getMyAttendance = async (req, res) => {
         const { userId } = req.user;
 
         const filter = { 
-            user: userId, 
+            $or: [
+              { user: userId },
+              { employeeId: userId } // support legacy IDs
+            ], 
             ...req.orgFilter 
         };
 
@@ -135,7 +141,7 @@ exports.getMyAttendance = async (req, res) => {
     }
 };
 
-// GET /attendance/stats
+// ─── Attendance Stats (Dashboard) ────────────────────────────────────────────────
 exports.getAttendanceStats = async (req, res) => {
     try {
         const { userId, organizationId } = req.user;
@@ -145,9 +151,11 @@ exports.getAttendanceStats = async (req, res) => {
         const start = new Date(year, month, 1);
         const end = new Date(year, month + 1, 1);
 
+        console.log(`[AttendanceStats] userId: ${userId}, orgId: ${organizationId}, period: ${start.toISOString()} to ${end.toISOString()}`);
+
         const monthlyRecords = await Attendance.find({
             user: userId,
-            ...req.orgFilter,
+            organizationId,
             date: { $gte: start, $lt: end }
         });
         
@@ -163,48 +171,50 @@ exports.getAttendanceStats = async (req, res) => {
             const dayOfWeek = dateObj.getDay(); 
             let isHoliday = (dayOfWeek === 0); // Sunday
             if (dayOfWeek === 6) {
-                if ((d >= 8 && d <= 14) || (d >= 22 && d <= 28)) isHoliday = true;
+                const weekNum = Math.ceil(d / 7);
+                if (weekNum === 2 || weekNum === 4) isHoliday = true;
             }
             if (!isHoliday) workingDays++;
         }
 
         const attendancePercentage = workingDays > 0 ? (presentDays / workingDays) * 100 : 0;
 
-        const emp = await HrEmployee.findOne({ userId, ...req.orgFilter });
-        let monthlyLeaves = 0;
-        let pendingRequests = 0;
-        if (emp) {
-            [monthlyLeaves, pendingRequests] = await Promise.all([
-                Leave.countDocuments({
-                    employeeId: emp._id,
-                    ...req.orgFilter,
-                    $or: [{ startDate: { $lte: end }, endDate: { $gte: start } }],
-                    status: 'approved'
-                }),
-                Leave.countDocuments({
-                    employeeId: emp._id,
-                    ...req.orgFilter,
-                    status: 'pending'
-                })
-            ]);
-        }
+        // Query leaves by userId (the correct field in Leave model)
+        const [monthlyLeaves, pendingRequests] = await Promise.all([
+            Leave.countDocuments({
+                user: userId,
+                organizationId,
+                startDate: { $lte: end },
+                endDate: { $gte: start },
+                status: 'Approved'
+            }),
+            Leave.countDocuments({
+                user: userId,
+                organizationId,
+                status: 'Pending'
+            })
+        ]);
 
-        return successResponse(res, {
+        const stats = {
             presentDays,
             workingDays,
             attendancePercentage: Math.round(attendancePercentage),
             monthlyLeaves,
             pendingRequests
-        }, 'Attendance stats fetched');
+        };
+
+        console.log(`[AttendanceStats] Result for ${userId}:`, stats);
+        return successResponse(res, stats, 'Attendance stats fetched');
     } catch (err) {
+        console.error('[AttendanceStats] Error:', err);
         return errorResponse(res, err.message, 500);
     }
 };
 
-// GET /attendance/monthly
+// ─── Monthly Chart Data (Grouped) ───────────────────────────────────────────────
 exports.getMonthlyChart = async (req, res) => {
     try {
-        const { userId } = req.user;
+        const { userId, organizationId } = req.user;
         const now = new Date();
         const year = now.getFullYear();
         const month = now.getMonth();
@@ -214,7 +224,7 @@ exports.getMonthlyChart = async (req, res) => {
 
         const records = await Attendance.find({
             user: userId,
-            ...req.orgFilter,
+            organizationId,
             date: { $gte: start, $lt: end }
         }).lean();
 
@@ -232,7 +242,8 @@ exports.getMonthlyChart = async (req, res) => {
             if (dayOfWeek === 0) {
                 status = 'holiday';
             } else if (dayOfWeek === 6) {
-                if ((d >= 8 && d <= 14) || (d >= 22 && d <= 28)) status = 'holiday';
+                const weekNum = Math.ceil(d / 7);
+                if (weekNum === 2 || weekNum === 4) status = 'holiday';
             }
 
             if (record && record.checkIn) {

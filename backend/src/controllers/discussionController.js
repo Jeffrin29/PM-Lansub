@@ -18,7 +18,7 @@ const getDiscussions = async (req, res) => {
         .skip(skip)
         .limit(limit)
         .populate('author', 'name email')
-        .populate('projectId', 'projectTitle')
+        .populate('projectId', 'name')
         .select('-comments')
         .lean(),
       Discussion.countDocuments(filter),
@@ -86,7 +86,7 @@ const getDiscussion = async (req, res) => {
     const discussion = await Discussion.findOne({ _id: req.params.id, ...req.orgFilter })
       .populate('author', 'name email')
       .populate('comments.author', 'name email')
-      .populate('projectId', 'projectTitle')
+      .populate('projectId', 'name')
       .lean();
 
     if (!discussion) return errorResponse(res, 'Discussion not found', 404);
@@ -160,7 +160,7 @@ const getLatestComments = async (req, res) => {
       .sort({ lastActivityAt: -1 })
       .limit(limit)
       .populate('comments.author', 'name email')
-      .populate('projectId', 'projectTitle')
+      .populate('projectId', 'name')
       .select('topic comments projectId')
       .lean();
 
@@ -171,7 +171,7 @@ const getLatestComments = async (req, res) => {
         comments.push({
           discussionId: d._id,
           topic: d.topic,
-          project: d.projectId?.projectTitle || null,
+          project: d.projectId?.name || d.projectId?.projectTitle || null,
           comment: last,
         });
       }

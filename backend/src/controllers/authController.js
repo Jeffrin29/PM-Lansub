@@ -30,6 +30,7 @@ const buildTokens = (user) => {
   }
 
   const payload = {
+    id: user._id.toString(),
     userId: user._id.toString(),
     role: user.roleId.name.toLowerCase(),
     organizationId: user.organizationId ? user.organizationId.toString() : null
@@ -199,7 +200,28 @@ exports.login = async (req, res) => {
       return res.status(500).json({ message: "Account configuration error: organizationId missing" });
     }
 
+    // --- JIT Employee Creation ---
+    const HrEmployee = require('../models/HrEmployee');
+    const existingEmp = await HrEmployee.findOne({ 
+      organizationId: user.organizationId, 
+      userId: user._id 
+    });
+
+    if (!existingEmp) {
+      console.log(`[AUTH] Creating JIT Employee record for user: ${user.email}`);
+      await HrEmployee.create({
+        organizationId: user.organizationId,
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role || user.roleId.name.toLowerCase(),
+        status: 'active',
+        department: 'General'
+      });
+    }
+
     const payload = {
+      id: user._id.toString(),
       userId: user._id.toString(),
       email: user.email,
       role: user.roleId.name.toLowerCase(),
@@ -218,6 +240,8 @@ exports.login = async (req, res) => {
       token,
       user: {
         id: user._id,
+        _id: user._id,
+        name: user.name,
         email: user.email,
         role: user.roleId.name,
         organizationId: user.organizationId

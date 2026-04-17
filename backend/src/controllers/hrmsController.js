@@ -20,14 +20,18 @@ exports.getHrmsStats = async (req, res) => {
       HrEmployee.countDocuments({ ...req.orgFilter }),
       HrEmployee.countDocuments({ ...req.orgFilter, status: 'active' }),
       Department.countDocuments({ ...req.orgFilter }),
-      Leave.countDocuments({ ...req.orgFilter, status: 'pending' }),
+      Leave.countDocuments({ ...req.orgFilter, status: 'Pending' }),
     ]);
-    return successResponse(res, {
+    
+    const stats = {
       totalEmployees: totalEmp,
       activeEmployees: activeEmp,
       departmentsCount: deptCount,
       pendingLeaves,
-    }, 'HRMS stats fetched.');
+    };
+    
+    console.log("[HRMS] Stats fetched:", stats);
+    return successResponse(res, stats, 'HRMS stats fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -48,6 +52,7 @@ exports.getEmployees = async (req, res) => {
       ];
     }
     const employees = await HrEmployee.find(filter).sort({ createdAt: -1 }).lean();
+    console.log(`[HRMS] Fetched ${employees.length} employees`);
     return successResponse(res, employees, 'Employees fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -56,61 +61,68 @@ exports.getEmployees = async (req, res) => {
 
 exports.createEmployee = async (req, res) => {
   try {
-    const { name, email, password, role, department, status, joiningDate, phone } = req.body;
-    const { organizationId, userId } = req.user;
+    const { name, email, role } = req.body;
+    const { organizationId, userId: adminId } = req.user;
     
     if (!name || !email) return errorResponse(res, 'Name and email are required.', 400);
 
     const exists = await User.findOne({ email });
     if (exists) return errorResponse(res, 'User with this email already exists', 409);
 
-    // Find the correct roleId from DB
+    // Find or Create the correct roleId from DB
     const roleName = (role || 'employee').toLowerCase();
     let dbRole = await Role.findOne({ name: roleName, organizationId });
     if (!dbRole) {
-        // Fallback or create if it's a standard role
+        // Fallback or create default role
         dbRole = await Role.findOne({ name: 'employee', organizationId });
+        if (!dbRole) {
+            dbRole = await Role.create({
+                name: 'employee',
+                displayName: 'Employee',
+                organizationId,
+                permissions: [],
+                isSystemRole: true,
+                level: 10
+            });
+        }
     }
 
-    if (!dbRole) return errorResponse(res, 'Role not found for this organization.', 404);
-
     // 1. Create User
-    const hash = await bcrypt.hash(password || 'TempPass@123', 10);
+    const tempPassword = 'User@123'; // Default password for new members
     const newUser = await User.create({
       name,
       email,
-      passwordHash: hash,
+      passwordHash: tempPassword, // Hashed in pre-save hook
       organizationId,
       roleId: dbRole._id,
-      role: dbRole.name, // Keeping for legacy but source of truth is roleId
+      role: dbRole.name,
       status: 'active',
     });
 
-    // 2. Create Employee
+    // 2. Create Employee record
     const employee = await HrEmployee.create({
       organizationId,
       userId: newUser._id, 
       name,
       email,
       role: dbRole.name,
-      department: department || null,
-      status: status || 'active',
-      joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
-      phone: phone || null,
+      status: 'active',
+      department: 'General',
+      joiningDate: new Date()
     });
 
-    // ✅ LOG ACTIVITY
     await logActivity({
-      userId: userId,
+      userId: adminId,
       organizationId,
       action: 'employee:added',
       entityType: 'user',
       entityId: newUser._id,
-      description: `New employee added: ${name}`
+      description: `New employee added: ${name} (${email})`
     });
 
-    return successResponse(res, { employee, userId: newUser._id }, 'Employee and User created.', 201);
+    return successResponse(res, { employee, userId: newUser._id }, 'Employee successfully created.', 201);
   } catch (err) {
+    console.error("[HRMS] createEmployee Error:", err);
     return errorResponse(res, err.message, 500);
   }
 };
@@ -154,7 +166,11 @@ exports.createDepartment = async (req, res) => {
   try {
     const { name, description } = req.body;
     if (!name) return errorResponse(res, 'Department name is required.', 400);
-    const dept = await Department.create({ organizationId: req.user.organizationId, name, description: description || '' });
+    const dept = await Department.create({ 
+      organizationId: req.user.organizationId, 
+      name, 
+      description: description || '' 
+    });
     return successResponse(res, dept, 'Department created.', 201);
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -185,44 +201,67 @@ exports.deleteDepartment = async (req, res) => {
   }
 };
 
-// ─── Attendance (Admin view) ───────────────────────────────────────────────────
+// ─── Attendance (Admin/HR view) ───────────────────────────────────────────────────
 
 exports.getAttendance = async (req, res) => {
   try {
     const { date, employeeId, month } = req.query;
     const filter = { ...req.orgFilter };
-    if (date) filter.date = date;
-    if (employeeId) filter.user = employeeId;
+    
+    if (date) {
+      const d = new Date(date);
+      d.setHours(0,0,0,0);
+      const nextD = new Date(d);
+      nextD.setDate(d.getDate() + 1);
+      filter.date = { $gte: d, $lt: nextD };
+    }
+
+    if (employeeId) {
+      // Check if employeeId is an HrEmployee ID or a User ID
+      const empRecord = await HrEmployee.findById(employeeId).lean();
+      filter.user = empRecord ? empRecord.userId : employeeId;
+    }
+
     if (month) {
       const [year, m] = month.split('-').map(Number);
       const start = new Date(year, m - 1, 1);
       const end = new Date(year, m, 1);
       filter.date = { $gte: start, $lt: end };
     }
+
+    console.log("[HRMS] Attendance query filter:", filter);
     const records = await Attendance.find(filter)
       .populate('user', 'name email')
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .lean();
 
-    const processedRecords = await Promise.all(records.map(r => enforceAutoLogout(r)));
+    const processedRecords = records.map(r => enforceAutoLogout(r));
     return successResponse(res, processedRecords, 'Attendance fetched.');
   } catch (err) {
+    console.error("[HRMS] getAttendance Error:", err);
     return errorResponse(res, err.message, 500);
   }
 };
 
-// ─── Leaves (Admin view) ──────────────────────────────────────────────────────
+// ─── Leaves (Admin/HR view) ──────────────────────────────────────────────────────
 
 exports.getLeaves = async (req, res) => {
   try {
     const { status, employeeId } = req.query;
     const filter = { ...req.orgFilter };
     if (status) filter.status = status;
-    if (employeeId) filter.user = employeeId;
+    
+    if (employeeId) {
+      const empRecord = await HrEmployee.findById(employeeId).lean();
+      filter.user = empRecord ? empRecord.userId : employeeId;
+    }
+
     const leaves = await Leave.find(filter)
       .populate('user', 'name email')
       .sort({ createdAt: -1 })
       .limit(200)
       .lean();
+
     return successResponse(res, leaves, 'Leaves fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -232,10 +271,11 @@ exports.getLeaves = async (req, res) => {
 exports.updateLeaveStatus = async (req, res) => {
   try {
     const { status, rejectionReason } = req.body;
-    if (!['Approved', 'Rejected', 'approved', 'rejected'].includes(status)) {
-      return errorResponse(res, 'status must be Approved or Rejected.', 400);
+    if (!['Approved', 'Rejected', 'Pending'].includes(status?.charAt(0).toUpperCase() + status?.slice(1).toLowerCase())) {
+        return errorResponse(res, 'Invalid status.', 400);
     }
     const normalizedStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    
     const leave = await Leave.findOneAndUpdate(
       { _id: req.params.id, ...req.orgFilter },
       {
@@ -249,7 +289,6 @@ exports.updateLeaveStatus = async (req, res) => {
     
     if (!leave) return errorResponse(res, 'Leave request not found.', 404);
 
-    // ✅ LOG ACTIVITY
     await logActivity({
       userId: req.user.userId,
       organizationId: req.user.organizationId,
@@ -259,9 +298,8 @@ exports.updateLeaveStatus = async (req, res) => {
       description: `Leave ${normalizedStatus} for user: ${leave.user?.name}`
     });
 
-    // ✅ TRIGGER NOTIFICATION
     await sendNotification({
-      userId: leave.user._id,
+      userId: leave.user?._id || leave.user,
       organizationId: req.user.organizationId,
       title: `Leave ${normalizedStatus}`,
       message: `Your leave request for ${leave.leaveType} has been ${normalizedStatus.toLowerCase()}.`,

@@ -1,9 +1,4 @@
-// src/lib/api.ts
-// Central API client – handles auth headers, token storage, and 401 redirects
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
-  : 'http://localhost:5000/api';
+const API_BASE = "http://localhost:5000/api";
 
 // ── Token helpers ────────────────────────────────────────────────────────────
 
@@ -30,42 +25,72 @@ export function clearToken(): void {
 
 export async function request<T = any>(path: string, options: any = {}): Promise<T> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+  const user = userStr ? JSON.parse(userStr) : null;
+  const orgId = user?.organizationId || user?.orgId;
+
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
   
-  if (token) {
-    console.log("SENDING TOKEN:", token.substring(0, 10) + "...");
-  }
-
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    "x-organization-id": typeof window !== "undefined" ? localStorage.getItem("organizationId") || orgId : orgId,
     ...options.headers,
   };
 
-  const res = await fetch(url, { ...options, headers });
+  // Automatically handle body stringification and Content-Type
+  let body = options.body;
+  if (body) {
+    if (body instanceof FormData) {
+      if (headers['Content-Type']) delete headers['Content-Type'];
+    } else {
+      body = JSON.stringify(body);
+      headers['Content-Type'] = 'application/json';
+    }
+  }
 
-  let json: any = null;
+  console.log(`[API REQUEST] ${options.method || 'GET'} ${url}`, headers);
+
+  console.log(`[API REQUEST] ${options.method || 'GET'} ${url}`);
+
   try {
-    json = await res.json();
-  } catch (e) {
-    json = null;
-  }
+    const res = await fetch(url, {
+      method: options.method || "GET",
+      headers,
+      body
+    });
 
-  if (!res.ok) {
-    console.error("API Error:", json?.message || "Request failed");
-    throw new Error(json?.message || "Request failed");
-  }
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch (e) {
+      json = null;
+    }
 
-  return json as T;
+    if (token) {
+      console.log(`[API RESPONSE] ${path} Status: ${res.status}`);
+      if (json) console.log("[API DATA]:", json);
+    }
+
+    if (!res.ok) {
+      console.error("API Error Response:", json?.message || "Request failed");
+      throw new Error(json?.message || "Request failed");
+    }
+
+    return json as T;
+  } catch (err: any) {
+    console.error("FETCH ERROR:", err);
+    throw err;
+  }
 }
 
 // ── HTTP convenience ─────────────────────────────────────────────────────────
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
-  put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
-  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body }),
+  put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body }),
+  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
@@ -156,6 +181,18 @@ export const adminApi = {
   deleteUser: (id: string) => api.delete<any>(`/admin/users/${id}`),
 };
 
+// Employees (org-scoped — accessible to admin, hr, project_manager, manager)
+export const employeesApi = {
+  // Get all employees in the org (for dropdowns in tasks, attendance, leaves)
+  getAll: (params = '') => api.get<any>(`/hrms/employees?limit=500${params}`),
+  // Create new employee (calls /hrms/employees POST — admin/HR only)
+  create: (body: unknown) => api.post<any>('/hrms/employees', body),
+  // Update employee
+  update: (id: string, body: unknown) => api.put<any>(`/hrms/employees/${id}`, body),
+  // Delete employee
+  remove: (id: string) => api.delete<any>(`/hrms/employees/${id}`),
+};
+
 // Dashboard
 export const dashboardApi = {
   summary: () => api.get<any>('/dashboard/summary'),
@@ -219,4 +256,16 @@ export const employeeApi = {
 export const departmentApi = hrmsApi;
 export const employeeProfileApi = employeeApi;
 
+// Calendar — day-level data for any logged-in user
+export const calendarApi = {
+  getDayData: (date: string) => api.get<any>(`/calendar?date=${date}`),
+};
+
+// Users dropdown — works for ALL roles (no HRMS restriction)
+// Use this in task modals, assignment dropdowns, etc.
+export const usersDropdownApi = {
+  getAll: (params = '') => api.get<any>(`/users?limit=500${params}`),
+};
+
 export default api;
+

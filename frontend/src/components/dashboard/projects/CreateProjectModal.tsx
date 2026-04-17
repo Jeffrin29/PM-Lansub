@@ -11,8 +11,7 @@ import {
   FiCheckCircle,
 } from "react-icons/fi";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { projectsApi } from "../../../lib/api";
 
 const STATUS_OPTIONS  = ["Draft","Active","Review","Completed","Archived"];
 const PRIORITY_OPTIONS = ["Low","Medium","High","Critical"];
@@ -35,7 +34,7 @@ interface Props {
 }
 
 interface FormState {
-  projectTitle: string;
+  name: string;
   description: string;
   owner: string;
   teamInput: string;          // comma-separated names
@@ -75,7 +74,7 @@ export default function CreateProjectModal({ onClose, onCreated, project }: Prop
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<FormState>({
-    projectTitle: project?.projectTitle ?? "",
+    name: project?.name ?? project?.projectTitle ?? "",
     description: project?.description ?? "",
     owner: project?.owner?.name ?? project?.owner ?? "",
     teamInput: project?.teamMembers?.map((m: any) => m.userId?.name || m.userId).join(", ") ?? "",
@@ -114,7 +113,7 @@ export default function CreateProjectModal({ onClose, onCreated, project }: Prop
     e.preventDefault();
     setSubmitError(null);
 
-    if (!form.projectTitle.trim()) {
+    if (!form.name?.trim()) {
       setSubmitError("Project name is required.");
       return;
     }
@@ -122,88 +121,69 @@ export default function CreateProjectModal({ onClose, onCreated, project }: Prop
     setSubmitting(true);
 
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
+      let payload: any;
+      const teamArr = form.teamInput
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((name) => ({ userId: name }));
 
-      let body: FormData | string;
-      let contentType: string | undefined;
+      // Prepare Payload
+      const payloadData: any = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        owner: form.owner.trim(),
+        status: form.status.toLowerCase(),
+        priority: form.priority.toLowerCase(),
+        startDate: form.startDate,
+        endDate: form.endDate,
+        riskLevel: form.riskLevel.toLowerCase(),
+        completion: parseInt(form.completion),
+        teamMembers: teamArr,
+      };
 
       if (files.length > 0) {
-        // Multipart for file uploads
         const fd = new FormData();
-        fd.append("projectTitle",         form.projectTitle.trim());
-        fd.append("description",          form.description.trim());
-        fd.append("status",               form.status);
-        fd.append("priority",             form.priority.toLowerCase());
-        fd.append("startDate",            form.startDate);
-        fd.append("endDate",              form.endDate);
-        fd.append("riskLevel",            form.riskLevel.toLowerCase());
-        fd.append("teamMembers", JSON.stringify([]));
-
-        // Team as JSON string
-        const teamArr = form.teamInput
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .map((name) => ({ name }));
-        fd.append("assignedTeam", JSON.stringify(teamArr));
-
-        files.forEach((f) => fd.append("attachments", f));
-        body = fd;
-      } else {
-        // JSON body
-        headers["Content-Type"] = "application/json";
-        contentType = "application/json";
-
-        const teamArr = form.teamInput
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .map((name) => ({ userId:name }));
-
-        body = JSON.stringify({
-          projectTitle: form.projectTitle.trim(),
-          description: form.description.trim(),
-
-          status: form.status.toLowerCase(),
-          priority: form.priority.toLowerCase(),
-
-          startDate: form.startDate
-            ? new Date(form.startDate).toISOString()
-            : undefined,
-
-          endDate: form.endDate
-            ? new Date(form.endDate).toISOString()
-            : undefined,
-
-          riskLevel: form.riskLevel.toLowerCase(),
-          completion: parseInt(form.completion),
-          teamMembers: [], // keep empty for now
+        Object.keys(payloadData).forEach(key => {
+          if (key === 'teamMembers') fd.append(key, JSON.stringify(payloadData[key]));
+          else fd.append(key, payloadData[key]);
         });
+        files.forEach((f) => fd.append("attachments", f));
+        payload = fd;
+      } else {
+        payload = payloadData;
       }
 
-      const url = project ? `${API_URL}/api/projects/${project._id}` : `${API_URL}/api/projects`;
-      const method = project ? "PUT" : "POST";
+      console.log("PROJECT PAYLOAD:", payload);
 
-      const res = await fetch(url, {
-        method,
-        headers,
-        body,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.message ?? `Server error ${res.status}`);
+      if (project) {
+        await projectsApi.update(project._id, payload);
+      } else {
+        await projectsApi.create(payload);
       }
 
       setSuccess(true);
+
+      // Reset Form after success
+      setForm({
+        name: "",
+        description: "",
+        owner: "",
+        teamInput: "",
+        status: "Draft",
+        priority: "Medium",
+        startDate: "",
+        endDate: "",
+        completion: "0",
+        riskLevel: "Low",
+      });
+
       setTimeout(() => {
         onCreated();
         onClose();
       }, 900);
     } catch (err: any) {
-      setSubmitError(err.message ?? "Failed to create project.");
+      setSubmitError(err.message ?? "Failed to save project.");
     } finally {
       setSubmitting(false);
     }
@@ -276,13 +256,12 @@ export default function CreateProjectModal({ onClose, onCreated, project }: Prop
               </motion.div>
             )}
 
-            {/* Row 1 — Project Name (full width) */}
             <Field label="Project Name *">
               <input
-                name="projectTitle"
+                name="name"
                 type="text"
                 placeholder="e.g. Platform Redesign Q2"
-                value={form.projectTitle}
+                value={form.name}
                 onChange={handleChange}
                 className={inputCls}
                 required

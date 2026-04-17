@@ -15,12 +15,12 @@ const attachmentSchema = new mongoose.Schema(
 
 const projectSchema = new mongoose.Schema(
   {
-    projectTitle: {
+    name: {
       type: String,
-      required: [true, 'Project title is required'],
+      required: [true, 'Project name is required'],
       trim: true,
-      minlength: [3, 'Title must be at least 3 characters'],
-      maxlength: [200, 'Title cannot exceed 200 characters'],
+      minlength: [3, 'Name must be at least 3 characters'],
+      maxlength: [200, 'Name cannot exceed 200 characters'],
     },
     description: {
       type: String,

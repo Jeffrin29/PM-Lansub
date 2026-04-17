@@ -17,10 +17,11 @@ export interface Attachment {
 
 export interface Project {
   _id: string;
-  projectTitle: string;
+  name: string;
+  projectTitle?: string;
   description?: string;
   owner?: { _id?: string; name?: string; email?: string } | string;
-  assignedTeam?: TeamMember[];
+  teamMembers?: TeamMember[];
   status: string;
   priority?: string;
   startDate?: string;

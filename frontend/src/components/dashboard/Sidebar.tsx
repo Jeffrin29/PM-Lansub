@@ -37,13 +37,13 @@ const NAV_ITEMS = [
     href: "/dashboard/reports",
     label: "Reports",
     Icon: FaFileAlt,
-    allowedRoles: ["admin", "project_manager"],
+    allowedRoles: ["admin", "project_manager", "manager"],
   },
   {
     href: "/dashboard/hrms",
     label: "HRMS",
     Icon: FaUsers,
-    allowedRoles: ["admin", "hr"],
+    allowedRoles: ["admin", "hr", "manager"],
   },
   {
     href: "/dashboard/admin",
@@ -68,9 +68,21 @@ export default function Sidebar() {
     try {
       const userRaw = localStorage.getItem("user");
       const user = userRaw ? JSON.parse(userRaw) : null;
-      const r = (user?.role?.name || user?.role || "employee").toLowerCase();
-      setRole(r);
-    } catch {
+      
+      let rawRole = 'employee';
+      if (user?.roleId?.name) {
+        rawRole = user.roleId.name;
+      } else if (user?.role?.name) {
+        rawRole = user.role.name;
+      } else if (user?.role) {
+        rawRole = typeof user.role === 'string' ? user.role : (user.role.name || 'employee');
+      }
+
+      const normalizedRole = rawRole.toLowerCase().trim().replace(/\s+/g, '_');
+      console.log("[SIDEBAR] Normalized User Role:", normalizedRole);
+      setRole(normalizedRole);
+    } catch (err) {
+      console.error("[SIDEBAR] Role detection error:", err);
       setRole("employee");
     }
   }, []);

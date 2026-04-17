@@ -1,15 +1,44 @@
 'use strict';
 
 const HrEmployee = require('../models/HrEmployee');
-const HrAttendance = require('../models/HrAttendance');
+const Attendance = require('../models/Attendance');
 const Leave = require('../models/Leave');
 const { errorResponse, successResponse } = require('../utils/helpers');
 
 // Helper: find the HR employee record that belongs to the logged-in user
 const getMyEmployee = async (req) => {
   const orgId = req.user?.organizationId;
-  const userId = req.user?.userId || req.user?._id;
-  return HrEmployee.findOne({ organizationId: orgId, userId }).lean();
+  const userId = req.user?.userId || req.user?.id;
+  
+  if (!userId || !orgId) {
+    console.error("[DEBUG] Missing userId or orgId in session", req.user);
+    return null;
+  }
+
+  console.log(`[DEBUG] Analyzing Employee context for User: ${userId} in Org: ${orgId}`);
+  let emp = await HrEmployee.findOne({ organizationId: orgId, userId }).lean();
+  
+  if (!emp) {
+    console.warn(`[WARN] No HR Employee found for user ${userId}. Implementing JIT creation fallback...`);
+    try {
+      // JIT Creation Fallback
+      const newEmp = await HrEmployee.create({
+        organizationId: orgId,
+        userId: userId,
+        name: req.user.name || "Employee",
+        email: req.user.email || "unknown@domain.com",
+        role: req.user.role || "employee",
+        status: "active",
+        department: "General"
+      });
+      console.log(`[DEBUG] JIT Employee identity created: ${newEmp._id}`);
+      return newEmp.toObject ? newEmp.toObject() : newEmp;
+    } catch (err) {
+      console.error("[ERROR] JIT Employee fallback failed:", err.message);
+      return null;
+    }
+  }
+  return emp;
 };
 
 // ─── My Profile ───────────────────────────────────────────────────────────────
@@ -18,7 +47,8 @@ exports.getMyProfile = async (req, res) => {
   try {
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
-    return successResponse(res, 'Profile fetched.', emp);
+    console.log("[DEBUG] Profile found:", emp.name);
+    return successResponse(res, emp, 'Profile fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -31,17 +61,14 @@ exports.getMyAttendance = async (req, res) => {
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
-    const { month } = req.query; // optional "2026-03"
-    const filter = { employeeId: emp._id };
-    if (month) {
-      const [year, m] = month.split('-').map(Number);
-      const start = new Date(year, m - 1, 1);
-      const end = new Date(year, m, 1);
-      filter.date = { $gte: start, $lt: end };
-    }
-
-    const records = await HrAttendance.find(filter).sort({ date: -1 }).limit(100).lean();
-    return successResponse(res, 'Attendance fetched.', records);
+    const { month } = req.query; 
+    const filter = { 
+      $or: [{ user: req.user.userId }, { employeeId: emp._id }],
+      organizationId: req.user.organizationId 
+    };
+    const records = await Attendance.find(filter).sort({ date: -1 }).limit(100).lean();
+    console.log(`[DEBUG] Fetched ${records.length} attendance records for ${req.user.userId}`);
+    return successResponse(res, records, 'Attendance fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -49,29 +76,37 @@ exports.getMyAttendance = async (req, res) => {
 
 exports.checkIn = async (req, res) => {
   try {
-    const orgId = req.user?.organizationId;
+    const { organizationId, userId } = req.user;
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
-    const today = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
 
-    let record = await HrAttendance.findOne({ employeeId: emp._id, date: today });
+    let record = await Attendance.findOne({ 
+      user: userId, 
+      organizationId,
+      date: { $gte: today, $lt: tomorrow } 
+    });
+
     if (record) {
-      if (record.checkIn) return errorResponse(res, 'Already checked in today.', 400);
-      record.checkIn = new Date();
-      record.status = 'present';
-      await record.save();
-    } else {
-      record = await HrAttendance.create({
-        organizationId: orgId,
-        employeeId: emp._id,
-        userId: req.user.userId || req.user._id,
-        date: today,
-        checkIn: new Date(),
-        status: 'present',
-      });
+      return errorResponse(res, 'Already checked in today.', 400);
     }
-    return successResponse(res, 'Checked in successfully.', record);
+
+    const now = new Date();
+    record = await Attendance.create({
+      organizationId,
+      user: userId,
+      employeeId: emp._id,
+      date: now,
+      checkIn: now,
+      status: 'Present',
+    });
+
+    console.log(`[DEBUG] Check-in successful for user ${userId}`);
+    return successResponse(res, record, 'Checked in successfully.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -79,17 +114,34 @@ exports.checkIn = async (req, res) => {
 
 exports.checkOut = async (req, res) => {
   try {
+    const { organizationId, userId } = req.user;
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
-    const today = new Date().toISOString().split('T')[0];
-    const record = await HrAttendance.findOne({ employeeId: emp._id, date: today });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const record = await Attendance.findOne({ 
+      user: userId, 
+      organizationId,
+      date: { $gte: today, $lt: tomorrow }
+    });
+
     if (!record || !record.checkIn) return errorResponse(res, 'No check-in found for today.', 400);
     if (record.checkOut) return errorResponse(res, 'Already checked out today.', 400);
 
-    record.checkOut = new Date();
+    const now = new Date();
+    record.checkOut = now;
+    
+    // Calculate working hours
+    const diffMs = now - record.checkIn;
+    record.workingHours = diffMs / (1000 * 60 * 60);
+
     await record.save();
-    return successResponse(res, 'Checked out successfully.', record);
+    console.log(`[DEBUG] Check-out successful for user ${userId}`);
+    return successResponse(res, record, 'Checked out successfully.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -102,8 +154,12 @@ exports.getMyLeaves = async (req, res) => {
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
-    const leaves = await Leave.find({ employeeId: emp._id }).sort({ createdAt: -1 }).lean();
-    return successResponse(res, 'Leaves fetched.', leaves);
+    const leaves = await Leave.find({ 
+      user: req.user.userId,
+      organizationId: req.user.organizationId 
+    }).sort({ createdAt: -1 }).lean();
+
+    return successResponse(res, leaves, 'Leaves fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -111,27 +167,27 @@ exports.getMyLeaves = async (req, res) => {
 
 exports.applyLeave = async (req, res) => {
   try {
-    const orgId = req.user?.organizationId;
+    const { organizationId, userId } = req.user;
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
     const { leaveType, type, startDate, endDate, reason } = req.body;
     const finalType = leaveType || type;
     if (!finalType || !startDate || !endDate) {
-      return errorResponse(res, 'type, startDate, and endDate are required.', 400);
+      return errorResponse(res, 'Type, startDate, and endDate are required.', 400);
     }
 
     const leave = await Leave.create({
-      organizationId: orgId,
+      organizationId,
+      user: userId,
       employeeId: emp._id,
-      userId: req.user.userId || req.user._id,
       leaveType: finalType,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       reason: reason || '',
-      status: 'pending',
+      status: 'Pending',
     });
-    return successResponse(res, 'Leave application submitted.', leave, 201);
+    return successResponse(res, leave, 'Leave application submitted.', 201);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -141,76 +197,67 @@ exports.applyLeave = async (req, res) => {
 
 exports.getMyStats = async (req, res) => {
   try {
+    const { organizationId, userId } = req.user;
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
     const now = new Date();
     const year = now.getFullYear();
-    const month = now.getMonth(); // 0-indexed
+    const month = now.getMonth(); 
     const start = new Date(year, month, 1);
     const end = new Date(year, month + 1, 1);
-    console.log("Start:", start);
-    console.log("End:", end);
 
     // 1. Get Present Days this month
-    const monthAttendance = await HrAttendance.find({
-      employeeId: emp._id,
+    const monthAttendance = await Attendance.find({
+      $or: [{ user: userId }, { employeeId: emp._id }],
+      organizationId,
       date: { $gte: start, $lt: end },
       checkIn: { $exists: true, $ne: null }
     }).lean();
 
     const presentDays = monthAttendance.length;
 
-    // 2. Calculate Working Days (Total days so far this month - Holidays)
+    // 2. Calculate Working Days
     let workingDays = 0;
-    let holidays = 0;
     const todayDate = now.getDate();
 
     for (let d = 1; d <= todayDate; d++) {
       const date = new Date(year, month, d);
-      const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
-
-      let isHoliday = false;
-      if (dayOfWeek === 0) {
-        isHoliday = true; // Sunday
-      } else if (dayOfWeek === 6) {
-        // Saturday logic: 2nd and 4th
+      const dayOfWeek = date.getDay(); 
+      let isHoliday = (dayOfWeek === 0); // Sunday
+      if (dayOfWeek === 6) {
         const weekNum = Math.ceil(d / 7);
-        if (weekNum === 2 || weekNum === 4) {
-          isHoliday = true;
-        }
+        if (weekNum === 2 || weekNum === 4) isHoliday = true;
       }
-
-      if (isHoliday) {
-        holidays++;
-      } else {
-        workingDays++;
-      }
+      if (!isHoliday) workingDays++;
     }
 
     const attendancePercentage = workingDays > 0 ? Math.round((presentDays / workingDays) * 100) : 0;
 
     // 3. Leaves this month
     const monthlyLeaves = await Leave.countDocuments({
-      employeeId: emp._id,
-      $or: [
-        { startDate: { $lte: end }, endDate: { $gte: start } }
-      ],
-      status: 'approved'
+      user: userId,
+      organizationId,
+      $or: [{ startDate: { $lte: end }, endDate: { $gte: start } }],
+      status: 'Approved'
     });
 
     const pendingRequests = await Leave.countDocuments({
-      employeeId: emp._id,
-      status: 'pending'
+      user: userId,
+      organizationId,
+      status: 'Pending'
     });
 
-    return successResponse(res, 'Stats fetched.', {
+    const stats = {
       presentDays,
       workingDays,
       attendancePercentage,
       monthlyLeaves,
       pendingRequests
-    });
+    };
+
+    console.log("[DEBUG] Stats calculated:", stats);
+    return successResponse(res, stats, 'Stats fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -220,21 +267,21 @@ exports.getMyStats = async (req, res) => {
 
 exports.getMonthlyAttendanceChart = async (req, res) => {
   try {
+    const { organizationId, userId } = req.user;
     const emp = await getMyEmployee(req);
     if (!emp) return errorResponse(res, 'Employee record not found.', 404);
 
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
-    
-    // Get all days in current month
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const chartData = [];
 
     const start = new Date(year, month, 1);
     const end = new Date(year, month + 1, 1);
-    const records = await HrAttendance.find({
-      employeeId: emp._id,
+    const records = await Attendance.find({
+      $or: [{ user: userId }, { employeeId: emp._id }],
+      organizationId,
       date: { $gte: start, $lt: end }
     }).lean();
 
@@ -252,25 +299,17 @@ exports.getMonthlyAttendanceChart = async (req, res) => {
         status = 'holiday';
       } else if (dayOfWeek === 6) {
         const weekNum = Math.ceil(d / 7);
-        if (weekNum === 2 || weekNum === 4) {
-          status = 'holiday';
-        }
+        if (weekNum === 2 || weekNum === 4) status = 'holiday';
       }
 
       if (record && record.checkIn) {
-        status = 'present';
+        status = (record.status || 'present').toLowerCase();
       }
-
-      // If it's a holiday but they checked in, mark as present? Usually yes.
-      if (record && record.checkIn) status = 'present';
-
-      // If it's today and they haven't checked in yet, maybe don't mark as absent yet?
-      // But the requirement says "present" | "absent" | "holiday"
 
       chartData.push({ date: dateStr, status });
     }
 
-    return successResponse(res, 'Monthly chart data fetched.', chartData);
+    return successResponse(res, chartData, 'Monthly chart data fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }

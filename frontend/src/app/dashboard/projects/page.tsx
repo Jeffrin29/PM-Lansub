@@ -20,14 +20,13 @@ import {
   FiFolder,
 } from "react-icons/fi";
 
+import { projectsApi } from "../../../lib/api";
 import ProjectsTable from "../../../components/dashboard/projects/ProjectsTable";
 import ProjectDetailModal from "../../../components/dashboard/projects/ProjectDetailModal";
 import CreateProjectModal from "../../../components/dashboard/projects/CreateProjectModal";
 import LifecycleCards from "../../../components/dashboard/projects/LifecycleCards";
 import { Project } from "../../../components/dashboard/projects/types";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
 const PAGE_SIZE = 10;
 
 // ─── Token helper ─────────────────────────────────────────────────────────────
@@ -108,43 +107,34 @@ export default function ProjectsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // ── Fetch ────────────────────────────────────────────────────────────────────
-  const fetchProjects = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const token = getToken();
-      const res = await fetch(`${API_URL}/api/projects?limit=200`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error(`Server returned ${res.status}`);
-      const data = await res.json();
-      const list: Project[] =
-        data?.data?.data ?? data?.data ?? data?.projects ?? [];
-      setProjects(list);
-    } catch (err: any) {
-      setError(err.message ?? "Unable to load projects.");
-    } finally {
-      setLoading(false);
-    }
-  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    const fetchProjectsList = async () => {
+      setLoading(true);
+      try {
+        const res = await projectsApi.getAll();
+        console.log("PROJECT API RESPONSE:", res);
+        
+        // Handle both user-specified structure and standard structure
+        const list = res?.data?.data ?? res?.data ?? res ?? [];
+        setProjects(list);
+      } catch (err: any) {
+        console.error("PROJECT FETCH ERROR:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjectsList();
+  }, [refreshKey]);
 
   // ── Delete ───────────────────────────────────────────────────────────────────
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Are you sure you want to delete this project?")) return;
     try {
-      const token = getToken();
-      const res = await fetch(`${API_URL}/api/projects/${id}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) {
-        setProjects((prev) => prev.filter((p) => p._id !== id));
-        setRefreshKey((k) => k + 1);
-      }
+      await projectsApi.remove(id);
+      setProjects((prev) => prev.filter((p) => p._id !== id));
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       console.error("Delete failed", err);
       setRefreshKey((k) => k + 1);
@@ -173,7 +163,7 @@ export default function ProjectsPage() {
   const filtered = useMemo(() => {
     return projects.filter((p) => {
       const nameMatch = search
-        ? p.projectTitle?.toLowerCase().includes(search.toLowerCase())
+        ? (p.name || p.projectTitle || "").toLowerCase().includes(search.toLowerCase())
         : true;
       const statusMatch =
         statusFilter === "All" ||
@@ -222,7 +212,7 @@ export default function ProjectsPage() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-7">
+    <div className="w-full max-w-7xl mx-auto px-6 space-y-7">
 
       {/* ── Page Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
@@ -258,6 +248,7 @@ export default function ProjectsPage() {
 
           {/* Create Project */}
           <motion.button
+            id="create-project-btn"
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => setShowCreate(true)}

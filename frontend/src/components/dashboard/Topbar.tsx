@@ -9,6 +9,12 @@ export default function Topbar() {
   const router = useRouter();
   const [attendance, setAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [userName, setUserName] = useState<string>("");
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    setUserName(user.name || "User");
+  }, []);
 
   const fetchAttendance = useCallback(async () => {
     try {
@@ -104,11 +110,11 @@ export default function Topbar() {
                 Done
               </button>
             ) : isCheckedIn ? (
-              <button disabled={loading} onClick={handleClockOut} className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition">
+              <button id="clock-out-btn" disabled={loading} onClick={handleClockOut} className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-bold transition">
                 {loading ? '...' : 'Clock Out'}
               </button>
             ) : (
-              <button disabled={loading} onClick={handleClockIn} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-md shadow-emerald-200 dark:shadow-none">
+              <button id="clock-in-btn" disabled={loading} onClick={handleClockIn} className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-md shadow-emerald-200 dark:shadow-none">
                 {loading ? '...' : 'Clock In'}
               </button>
             )}
@@ -122,10 +128,15 @@ export default function Topbar() {
           <div className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border border-black" />
         </div>
 
-        <FaUserCircle 
-          className="text-xl cursor-pointer hover:scale-105 transition text-gray-500 hover:text-white" 
+        <div 
+          className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-900 px-3 py-1.5 rounded-lg transition"
           onClick={() => router.push("/dashboard/profile")}
-        />
+        >
+          <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
+            {userName}
+          </span>
+          <FaUserCircle className="text-xl text-gray-500" />
+        </div>
       </div>
     </div>
 

@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/authenticate');
-const { requireRole } = require('../middleware/requireRole');
+const { checkRole } = require('../middleware/checkRole');
 const { organizationIsolation } = require('../middleware/organizationIsolation');
 const hrms = require('../controllers/hrmsController');
 const emp = require('../controllers/employeeController');
@@ -29,9 +29,9 @@ router.post('/checkin', attendance.checkIn);
 router.post('/checkout', attendance.checkOut);
 
 // GET /api/attendance/all (Admin View)
-router.get('/all', requireRole(['admin', 'hr', 'manager']), hrms.getAttendance);
+router.get('/all', checkRole('admin', 'hr', 'manager'), hrms.getAttendance);
 
 // GET /api/attendance (Backward compatibility)
-router.get('/', requireRole(['admin', 'hr', 'manager']), hrms.getAttendance);
+router.get('/', checkRole('admin', 'hr', 'manager'), hrms.getAttendance);
 
 module.exports = router;

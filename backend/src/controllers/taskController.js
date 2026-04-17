@@ -71,7 +71,7 @@ exports.getTasks = async (req, res, next) => {
       Task.find(filter)
         .populate('assignedTo', 'name email avatar')
         .populate('reporter', 'name email')
-        .populate('projectId', 'projectTitle status')
+        .populate('projectId', 'name status')   // Project.name is the correct field
         .sort(sort)
         .skip(skip)
         .limit(limit)
@@ -91,7 +91,7 @@ exports.getTaskById = async (req, res, next) => {
     const task = await Task.findOne({ _id: req.params.id, ...req.orgFilter })
       .populate('assignedTo', 'name email avatar')
       .populate('reporter', 'name email avatar')
-      .populate('projectId', 'projectTitle status organizationId')
+      .populate('projectId', 'name status organizationId')  // Project.name
       .populate('comments.author', 'name email avatar')
       .populate('completedBy', 'name email');
 
@@ -180,7 +180,7 @@ exports.createTask = async (req, res, next) => {
       action: 'CREATE_TASK', 
       entityType: 'task', 
       entityId: task._id,
-      description: `Task created: "${title}" in project "${project.projectTitle}"`,
+      description: `Task created: "${title}" in project "${project.name || project.projectTitle}"`,
       ipAddress: getClientIp(req), 
       userAgent: req.headers['user-agent'],
     });

@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/authenticate');
-const { requireRole } = require('../middleware/requireRole');
+const { checkRole } = require('../middleware/checkRole');
 const { organizationIsolation } = require('../middleware/organizationIsolation');
 const leaveController = require('../controllers/leaveController');
 const hrms = require('../controllers/hrmsController');
@@ -16,16 +16,16 @@ router.get('/my', leaveController.getMyLeaves);
 router.post('/', leaveController.applyLeave);
 
 // GET / (Admin/HR View All)
-router.get('/', requireRole(['admin', 'hr', 'manager']), hrms.getLeaves);
+router.get('/', checkRole('admin', 'hr', 'manager'), hrms.getLeaves);
 
 // PUT /:id (Update status)
-router.put('/:id', requireRole(['admin', 'hr', 'manager']), hrms.updateLeaveStatus);
+router.put('/:id', checkRole('admin', 'hr', 'manager'), hrms.updateLeaveStatus);
 
 // PATCH /:id/approve (Backward compatibility)
-router.patch('/:id/approve', requireRole(['admin', 'hr', 'manager']), hrms.approveLeave);
+router.patch('/:id/approve', checkRole('admin', 'hr', 'manager'), hrms.approveLeave);
 
 // PATCH /:id/reject (Backward compatibility)
-router.patch('/:id/reject', requireRole(['admin', 'hr', 'manager']), hrms.rejectLeave);
+router.patch('/:id/reject', checkRole('admin', 'hr', 'manager'), hrms.rejectLeave);
 
 // DELETE /:id (Cancel Leave)
 router.delete('/:id', leaveController.cancelLeave);

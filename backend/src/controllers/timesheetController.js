@@ -33,7 +33,7 @@ const getTimesheets = async (req, res) => {
         .limit(limit)
         .populate('user', 'name email')
         .populate('task', 'title')
-        .populate('project', 'projectTitle')
+        .populate('project', 'name')
         .lean(),
       Timesheet.countDocuments(filter),
     ]);
@@ -65,7 +65,7 @@ const createTimesheet = async (req, res) => {
     const populated = await timesheet.populate([
       { path: 'user', select: 'name email' },
       { path: 'task', select: 'title' },
-      { path: 'project', select: 'projectTitle' },
+      { path: 'project', select: 'name' },
     ]);
 
     return successResponse(res, populated, 'Timesheet created', 201);
@@ -119,22 +119,22 @@ const updateTimesheet = async (req, res) => {
 
     // Ownership check
     if (userId !== sheet.user.toString()) {
-       const canReview = ['admin', 'hr', 'project_manager', 'manager'].includes(role);
-       if (!canReview) return errorResponse(res, 'Unauthorized to update this timesheet', 403);
+      const canReview = ['admin', 'hr', 'project_manager', 'manager'].includes(role);
+      if (!canReview) return errorResponse(res, 'Unauthorized to update this timesheet', 403);
     }
 
     if (hours !== undefined) sheet.hours = hours;
     if (billingType) sheet.billingType = billingType;
     if (notes !== undefined) sheet.notes = notes;
     if (date) sheet.date = new Date(date);
-    
+
     if (status && ['pending', 'approved', 'rejected'].includes(status)) {
-       const canReview = ['admin', 'hr', 'project_manager', 'manager'].includes(role);
-       if (canReview) {
-         sheet.status = status;
-         sheet.reviewedBy = userId;
-         sheet.reviewedAt = new Date();
-       }
+      const canReview = ['admin', 'hr', 'project_manager', 'manager'].includes(role);
+      if (canReview) {
+        sheet.status = status;
+        sheet.reviewedBy = userId;
+        sheet.reviewedAt = new Date();
+      }
     }
 
     await sheet.save();
