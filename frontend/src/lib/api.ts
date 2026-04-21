@@ -1,69 +1,96 @@
-// src/lib/api.ts
-// Central API client – handles auth headers, token storage, and 401 redirects
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
-  : 'http://localhost:5000/api';
+const API_BASE = "http://localhost:5000/api";
 
 // ── Token helpers ────────────────────────────────────────────────────────────
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem('lansub-auth');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.accessToken || parsed?.token || null;
-  } catch {
-    return null;
-  }
+  return localStorage.getItem('token');
 }
 
-export function setToken(token: string): void {
+export function setToken(token: string, user?: any): void {
   if (typeof window === 'undefined') return;
-  try {
-    const raw = localStorage.getItem('lansub-auth');
-    const parsed = raw ? JSON.parse(raw) : {};
-    parsed.accessToken = token;
-    localStorage.setItem('lansub-auth', JSON.stringify(parsed));
-  } catch { }
+  localStorage.setItem('token', token);
+  if (user) {
+    localStorage.setItem('user', JSON.stringify(user));
+  }
 }
 
 export function clearToken(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem('lansub-auth');
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
 }
 
 // ── Core request ─────────────────────────────────────────────────────────────
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
+export async function request<T = any>(path: string, options: any = {}): Promise<T> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+  const user = userStr ? JSON.parse(userStr) : null;
+  const orgId = user?.organizationId || user?.orgId;
+
+  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    "Content-Type": "application/json",
+    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    "x-organization-id": typeof window !== "undefined" ? localStorage.getItem("organizationId") || orgId : orgId,
+    ...options.headers,
   };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-
-  if (res.status === 401) {
-    clearToken();
-    if (typeof window !== 'undefined') window.location.href = '/auth';
-    throw new Error('Unauthorized – redirecting to login');
+  // Automatically handle body stringification and Content-Type
+  let body = options.body;
+  if (body) {
+    if (body instanceof FormData) {
+      if (headers['Content-Type']) delete headers['Content-Type'];
+    } else {
+      body = JSON.stringify(body);
+      headers['Content-Type'] = 'application/json';
+    }
   }
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.message || `Request failed (${res.status})`);
-  return json;
+  console.log(`[API REQUEST] ${options.method || 'GET'} ${url}`, headers);
+
+  console.log(`[API REQUEST] ${options.method || 'GET'} ${url}`);
+
+  try {
+    const res = await fetch(url, {
+      method: options.method || "GET",
+      headers,
+      body
+    });
+
+    let json: any = null;
+    try {
+      json = await res.json();
+    } catch (e) {
+      json = null;
+    }
+
+    if (token) {
+      console.log(`[API RESPONSE] ${path} Status: ${res.status}`);
+      if (json) console.log("[API DATA]:", json);
+    }
+
+    if (!res.ok) {
+      console.error("API Error Response:", json?.message || "Request failed");
+      throw new Error(json?.message || "Request failed");
+    }
+
+    return json as T;
+  } catch (err: any) {
+    console.error("FETCH ERROR:", err);
+    throw err;
+  }
 }
 
 // ── HTTP convenience ─────────────────────────────────────────────────────────
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
-  put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
-  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  post: <T>(path: string, body: unknown) => request<T>(path, { method: 'POST', body }),
+  put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body }),
+  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
@@ -72,10 +99,10 @@ export const api = {
 // Auth
 export const authApi = {
   login: (email: string, password: string) =>
-    api.post<{ data: { accessToken: string; user: unknown } }>('/auth/login', { email, password }),
+    api.post<{ token: string; user: any }>('/auth/login', { email, password }),
   register: (payload: unknown) =>
-    api.post<{ data: { accessToken: string; user: unknown } }>('/auth/register', payload),
-  me: () => api.get<{ data: unknown }>('/auth/me'),
+    api.post<{ token: string; user: any }>('/auth/register', payload),
+  me: () => api.get<any>('/auth/me'),
 };
 
 // Projects
@@ -101,6 +128,8 @@ export const timesheetsApi = {
   getAll: (params = '') => api.get<any>(`/timesheets?limit=100${params}`),
   create: (body: unknown) => api.post<any>('/timesheets', body),
   update: (id: string, body: unknown) => api.put<any>(`/timesheets/${id}`, body),
+  approve: (id: string) => api.patch<any>(`/timesheets/${id}/approve`, {}),
+  reject: (id: string) => api.patch<any>(`/timesheets/${id}/reject`, {}),
   remove: (id: string) => api.delete<any>(`/timesheets/${id}`),
   clockIn: (body: unknown) => api.post<any>('/timesheets/clock-in', body),
   clockOut: (body: unknown) => api.post<any>('/timesheets/clock-out', body),
@@ -111,6 +140,7 @@ export const reportsApi = {
   projects: () => api.get<any>('/reports/projects'),
   productivity: () => api.get<any>('/reports/productivity'),
   delays: () => api.get<any>('/reports/delays'),
+  getConsolidated: () => api.get<any>('/reports'),
 };
 
 // Notifications
@@ -135,12 +165,32 @@ export const discussionsApi = {
     api.post<any>(`/discussions/${id}/comments`, { content }),
 };
 
-// Users / Admin
+// Users / Profile
+export const userApi = {
+  getMe: () => api.get<any>('/users/me'),
+  updateProfile: (body: unknown) => api.put<any>('/users/update', body),
+  changePassword: (body: unknown) => api.put<any>('/users/change-password', body),
+  getAll: (params = '') => api.get<any>(`/users?limit=100${params}`),
+};
+
+// Admin
 export const adminApi = {
   getUsers: (params = '') => api.get<any>(`/admin/users?limit=100${params}`),
   createUser: (body: unknown) => api.post<any>('/admin/users', body),
   updateUser: (id: string, body: unknown) => api.put<any>(`/admin/users/${id}`, body),
   deleteUser: (id: string) => api.delete<any>(`/admin/users/${id}`),
+};
+
+// Employees (org-scoped — accessible to admin, hr, project_manager, manager)
+export const employeesApi = {
+  // Get all employees in the org (for dropdowns in tasks, attendance, leaves)
+  getAll: (params = '') => api.get<any>(`/hrms/employees?limit=500${params}`),
+  // Create new employee (calls /hrms/employees POST — admin/HR only)
+  create: (body: unknown) => api.post<any>('/hrms/employees', body),
+  // Update employee
+  update: (id: string, body: unknown) => api.put<any>(`/hrms/employees/${id}`, body),
+  // Delete employee
+  remove: (id: string) => api.delete<any>(`/hrms/employees/${id}`),
 };
 
 // Dashboard
@@ -151,11 +201,12 @@ export const dashboardApi = {
   projectProgress: () => api.get<any>('/dashboard/project-progress'),
   workload: () => api.get<any>('/dashboard/workload'),
   costAnalysis: () => api.get<any>('/dashboard/cost-analysis'),
+  recentActivity: (limit = 10) => api.get<any>(`/dashboard/recent-activity?limit=${limit}`),
 };
 
 // HRMS / HR Admin
 export const hrmsApi = {
-  stats: () => api.get<any>('/hrms/stats'),
+  stats: () => api.get<any>('/hrms/dashboard'),
   // Employees
   getEmployees: (params = '') => api.get<any>(`/hrms/employees?limit=200${params}`),
   createEmployee: (body: unknown) => api.post<any>('/hrms/employees', body),
@@ -169,33 +220,52 @@ export const hrmsApi = {
   // Attendance & Leaves (Admin)
   getAttendance: (params = '') => api.get<any>(`/hrms/attendance?${params}`),
   getLeaves: (params = '') => api.get<any>(`/hrms/leaves?${params}`),
+  approveLeave: (id: string) => api.patch<any>(`/hrms/leaves/${id}/approve`, {}),
+  rejectLeave: (id: string) => api.patch<any>(`/hrms/leaves/${id}/reject`, {}),
   updateLeaveStatus: (id: string, body: unknown) => api.put<any>(`/hrms/leaves/${id}/status`, body),
 };
 
-// Employee Self-Service
-export const employeeApi = {
-  getProfile: () => api.get<any>('/employee/me'),
-  getStats: () => api.get<any>('/employee/stats'),
-  getMonthlyChart: () => api.get<any>('/employee/attendance/chart'),
-  getAttendance: (params = '') => api.get<any>(`/employee/attendance?${params}`),
-  checkIn: () => api.post<any>('/employee/attendance/check-in', {}),
-  checkOut: () => api.post<any>('/employee/attendance/check-out', {}),
-  getLeaves: () => api.get<any>('/employee/leaves'),
-  applyLeave: (body: unknown) => api.post<any>('/employee/leaves/apply', body),
+// Attendance Service (Employee)
+export const attendanceApi = {
+  getStats: () => api.get<any>('/attendance/stats'),
+  getMonthlyChart: () => api.get<any>('/attendance/chart'),
+  getHistory: (params = '') => api.get<any>(`/attendance/my?${params}`),
+  checkIn: () => api.post<any>('/attendance/checkin', {}),
+  checkOut: () => api.post<any>('/attendance/checkout', {}),
 };
 
-// Compatibility for requested alias names
-export const attendanceApi = {
-  checkIn: employeeApi.checkIn,
-  checkOut: employeeApi.checkOut,
-  getHistory: employeeApi.getAttendance,
-};
+// Leave Service (Employee)
 export const leaveApi = {
-  apply: employeeApi.applyLeave,
-  getHistory: employeeApi.getLeaves,
-  approve: hrmsApi.updateLeaveStatus,
+  apply: (body: unknown) => api.post<any>('/leaves', body),
+  getHistory: () => api.get<any>('/leaves/my'),
+  delete: (id: string) => api.delete<any>(`/leaves/${id}`),
 };
+
+// Employee Self-Service (Combined for compatibility)
+export const employeeApi = {
+  getProfile: () => api.get<any>('/employee/me'),
+  getStats: attendanceApi.getStats,
+  getMonthlyChart: attendanceApi.getMonthlyChart,
+  getAttendance: attendanceApi.getHistory,
+  checkIn: attendanceApi.checkIn,
+  checkOut: attendanceApi.checkOut,
+  getLeaves: leaveApi.getHistory,
+  applyLeave: leaveApi.apply,
+};
+
 export const departmentApi = hrmsApi;
 export const employeeProfileApi = employeeApi;
 
+// Calendar — day-level data for any logged-in user
+export const calendarApi = {
+  getDayData: (date: string) => api.get<any>(`/calendar?date=${date}`),
+};
+
+// Users dropdown — works for ALL roles (no HRMS restriction)
+// Use this in task modals, assignment dropdowns, etc.
+export const usersDropdownApi = {
+  getAll: (params = '') => api.get<any>(`/users?limit=500${params}`),
+};
+
 export default api;
+

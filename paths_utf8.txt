@@ -1,0 +1,3 @@
+﻿C:\PM-Lan\backend\src\controllers\taskController.js
+C:\PM-Lan\frontend\src\components\dashboard\tasks\TasksGanttView.tsx
+C:\PM-Lan\frontend\src\components\dashboard\TaskModal.tsx

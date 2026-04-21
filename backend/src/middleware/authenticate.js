@@ -1,56 +1,76 @@
-const { verifyAccessToken } = require('../utils/jwt');
-const User = require('../models/User');
-const { errorResponse } = require('../utils/helpers');
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 
 /**
- * Protect routes — validates Bearer JWT access token and attaches user to req.user
+ * Standardized JWT authentication middleware
+ * Populates req.user from DB to ensure role and organization are always current.
  */
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return errorResponse(res, 'Authentication required. Please provide a valid token.', 401);
+    const headerOrgId = req.headers['x-organization-id'];
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
     }
 
-    const token = authHeader.split(' ')[1];
+    const token = authHeader.split(" ")[1];
+    const secret = process.env.JWT_SECRET || "secret";
+    
     let decoded;
     try {
-      decoded = verifyAccessToken(token);
+      decoded = jwt.verify(token, secret);
     } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        return errorResponse(res, 'Access token has expired. Please refresh your token.', 401);
-      }
-      return errorResponse(res, 'Invalid access token.', 401);
+      console.error("JWT Verify Fail:", err.message);
+      return res.status(401).json({ message: "Invalid or expired token" });
     }
 
-    const user = await User.findById(decoded.userId)
-      .select('+passwordHash')
-      .populate('roleId', 'name displayName level permissions isSystemRole')
-      .lean({ virtuals: false });
-
+    console.log("--- AUTH DEBUG ---");
+    console.log("Decoded User ID:", decoded.userId);
+    console.log("Decoded Org ID:", decoded.organizationId);
+    
+    const user = await User.findById(decoded.userId).populate("roleId");
+    
     if (!user) {
-      return errorResponse(res, 'User account not found.', 401);
+      return res.status(401).json({ message: "User no longer exists" });
     }
 
-    if (user.status !== 'active') {
-      return errorResponse(res, `Account is ${user.status}. Please contact your administrator.`, 403);
+    // Role Normalization: "Project Manager" -> "project_manager"
+    let rawRole = 'employee';
+    if (user.roleId && user.roleId.name) {
+      rawRole = user.roleId.name;
+    } else if (user.role) {
+      rawRole = user.role;
     }
+    const normalizedRole = rawRole.toLowerCase().trim().replace(/\s+/g, '_');
 
-    // Attach user info to request
+    // Organization ID normalization
+    const organizationId = (user.organizationId || decoded.organizationId || headerOrgId)?.toString();
+
+    // Attach standardized user object
     req.user = {
       _id: user._id,
+      id: user._id.toString(),
       userId: user._id.toString(),
-      name: user.name,
+      role: normalizedRole,
+      organizationId: organizationId,
       email: user.email,
-      organizationId: user.organizationId.toString(),
-      roleId: user.roleId?._id?.toString(),
-      role: user.roleId,
-      status: user.status,
+      name: user.name
     };
 
+    console.log("Normalized Role:", req.user.role);
+    console.log("Active OrgId:", req.user.organizationId);
+
+    if (!req.user.organizationId) {
+      console.error("Organization context missing for:", user.email);
+      return res.status(403).json({ message: "Organization context is missing" });
+    }
+
+    req.organizationId = req.user.organizationId;
     next();
   } catch (err) {
-    return errorResponse(res, 'Authentication failed.', 500);
+    console.error("JWT AUTH ERROR:", err);
+    return res.status(401).json({ message: "Authentication failed" });
   }
 };
 
@@ -65,4 +85,7 @@ const optionalAuthenticate = async (req, res, next) => {
   return authenticate(req, res, next);
 };
 
-module.exports = { authenticate, optionalAuthenticate };
+module.exports = {
+  authenticate,
+  optionalAuthenticate
+};

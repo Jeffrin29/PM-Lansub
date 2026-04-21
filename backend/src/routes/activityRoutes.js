@@ -1,15 +1,13 @@
 'use strict';
 const express = require('express');
 const router = express.Router();
-const ctrl = require('../controllers/activityController');
-const dashCtrl = require('../controllers/dashboardController');
+const activityController = require('../controllers/activityController');
 const { authenticate } = require('../middleware/authenticate');
 const { organizationIsolation } = require('../middleware/organizationIsolation');
 
 router.use(authenticate, organizationIsolation);
 
-router.get('/',       ctrl.getActivity);
-router.post('/',      ctrl.createActivity);
-router.get('/recent', dashCtrl.getRecentActivity);
+router.get('/', activityController.getActivities);
+router.get('/recent', activityController.getRecentActivities);
 
 module.exports = router;

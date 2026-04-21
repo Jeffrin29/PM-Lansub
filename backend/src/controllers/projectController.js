@@ -1,51 +1,26 @@
 const Project = require('../models/Project');
-const Notification = require('../models/Notification');
+const { logActivity } = require('../services/activityService');
+const { sendNotification } = require('../services/notificationService');
 const { successResponse, errorResponse, getPagination, paginatedResponse, getClientIp } = require('../utils/helpers');
 const { createAuditLog } = require('../utils/auditLog');
 const path = require('path');
 
 // ─── List Projects ────────────────────────────────────────────────────────────
-exports.getProjects = async (req, res, next) => {
+exports.getProjects = async (req, res) => {
   try {
-    const { skip, limit, page, sort } = getPagination(req.query);
-    const { status, priority, riskLevel, search, owner } = req.query;
+    console.log("ORG ID:", req.organizationId);
 
-    const filter = { ...req.orgFilter };
-    if (status) filter.status = status;
-    if (priority) filter.priority = priority;
-    if (riskLevel) filter.riskLevel = riskLevel;
-    if (owner) filter.owner = owner;
-    if (search) {
-      filter.$or = [
-        { projectTitle: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-      ];
-    }
+    const projects = await Project.find({
+      organizationId: req.organizationId
+    })
+    .populate("owner", "name email")
+    .sort({ createdAt: -1 });
 
-    // Members can only see projects they own or are part of
-    const role = req.user.role;
-    const isAdmin = role?.isSystemRole && ['super_admin', 'org_admin'].includes(role.name);
-    if (!isAdmin) {
-      filter.$or = [
-        { owner: req.user.userId },
-        { 'teamMembers.userId': req.user.userId },
-      ];
-    }
+    console.log("PROJECTS FOUND:", projects.length);
 
-    const [projects, total] = await Promise.all([
-      Project.find(filter)
-        .populate('owner', 'name email avatar')
-        .populate('teamMembers.userId', 'name email avatar')
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Project.countDocuments(filter),
-    ]);
-
-    return successResponse(res, paginatedResponse(projects, total, page, limit), 'Projects fetched.');
+    res.json(projects);
   } catch (err) {
-    next(err);
+    res.status(500).json({ message: err.message });
   }
 };
 
@@ -68,12 +43,14 @@ exports.getProjectById = async (req, res, next) => {
 exports.createProject = async (req, res, next) => {
   try {
     const {
-      projectTitle, description, status, priority, budget,
-      startDate, endDate, riskLevel, teamMembers, tags, milestones,
+      name, projectTitle, description, status, priority, budget,
+      startDate, endDate, riskLevel, teamMembers, tags, milestones, completion,
     } = req.body;
 
+    const finalName = name || projectTitle;
+
     const project = await Project.create({
-      projectTitle,
+      name: finalName,
       description,
       organizationId: req.user.organizationId,
       owner: req.user.userId,
@@ -86,20 +63,32 @@ exports.createProject = async (req, res, next) => {
       teamMembers: teamMembers || [],
       tags: tags || [],
       milestones: milestones || [],
+      completion: completion || 0,
       createdBy: req.user.userId,
+    });
+
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: req.user.userId,
+      organizationId: req.user.organizationId,
+      action: 'project:created',
+      entityType: 'project',
+      entityId: project._id,
+      description: `Project created: "${finalName}"`
     });
 
     // Notify team members
     if (teamMembers && teamMembers.length > 0) {
-      const notifications = teamMembers.map((member) => ({
-        userId: member.userId,
-        organizationId: req.user.organizationId,
-        message: `You have been added to project: "${projectTitle}"`,
-        title: 'Added to Project',
-        type: 'project_created',
-        link: { entityType: 'project', entityId: project._id },
-      }));
-      await Notification.insertMany(notifications);
+      for (const member of teamMembers) {
+        await sendNotification({
+          userId: member.userId,
+          organizationId: req.user.organizationId,
+          title: 'Added to Project',
+          message: `You have been added to project: "${finalName}"`,
+          type: 'project_created',
+          link: { type: 'project', id: project._id }
+        });
+      }
     }
 
     await createAuditLog({
@@ -108,7 +97,7 @@ exports.createProject = async (req, res, next) => {
       action: 'CREATE_PROJECT',
       entityType: 'project',
       entityId: project._id,
-      description: `Project created: "${projectTitle}"`,
+      description: `Project created: "${finalName}"`,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
@@ -125,28 +114,42 @@ exports.updateProject = async (req, res, next) => {
     const project = await Project.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!project) return errorResponse(res, 'Project not found.', 404);
 
-    // Only owner or admin can update
-    const isAdmin = req.user.role?.isSystemRole;
-    const isOwner = project.owner.toString() === req.user.userId;
+    const { role, userId } = req.user;
+    const isAdmin = role === 'admin' || role === 'hr';
+    const isOwner = project.owner.toString() === userId;
+    
     if (!isAdmin && !isOwner) {
       return errorResponse(res, 'Only the project owner or admin can update this project.', 403);
     }
 
     const allowedFields = [
-      'projectTitle', 'description', 'status', 'priority', 'budget',
-      'startDate', 'endDate', 'riskLevel', 'completionPercentage',
+      'name', 'projectTitle', 'description', 'status', 'priority', 'budget',
+      'startDate', 'endDate', 'riskLevel', 'completion',
       'teamMembers', 'tags', 'milestones', 'owner',
     ];
     const before = project.toObject();
 
     allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) project[field] = req.body[field];
+      if (req.body[field] !== undefined) {
+        if (field === 'projectTitle') project.name = req.body[field];
+        else project[field] = req.body[field];
+      }
     });
 
     await project.save();
 
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: userId,
+      organizationId: req.user.organizationId,
+      action: 'project:updated',
+      entityType: 'project',
+      entityId: project._id,
+      description: `Project updated: "${project.name}"`
+    });
+
     await createAuditLog({
-      userId: req.user.userId,
+      userId: userId,
       organizationId: req.user.organizationId,
       action: 'UPDATE_PROJECT',
       entityType: 'project',
@@ -169,21 +172,33 @@ exports.deleteProject = async (req, res, next) => {
     const project = await Project.findOne({ _id: req.params.id, ...req.orgFilter });
     if (!project) return errorResponse(res, 'Project not found.', 404);
 
-    const isAdmin = req.user.role?.isSystemRole;
-    const isOwner = project.owner.toString() === req.user.userId;
+    const { role, userId } = req.user;
+    const isAdmin = role === 'admin';
+    const isOwner = project.owner.toString() === userId;
+
     if (!isAdmin && !isOwner) {
       return errorResponse(res, 'Only the project owner or admin can delete this project.', 403);
     }
 
     await project.deleteOne();
 
+    // ✅ LOG ACTIVITY
+    await logActivity({
+      userId: userId,
+      organizationId: req.user.organizationId,
+      action: 'project:deleted',
+      entityType: 'project',
+      entityId: project._id,
+      description: `Project deleted: "${project.name}"`
+    });
+
     await createAuditLog({
-      userId: req.user.userId,
+      userId: userId,
       organizationId: req.user.organizationId,
       action: 'DELETE_PROJECT',
       entityType: 'project',
       entityId: project._id,
-      description: `Project deleted: "${project.projectTitle}"`,
+      description: `Project deleted: "${project.name}"`,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });

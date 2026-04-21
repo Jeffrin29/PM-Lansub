@@ -149,10 +149,10 @@ function HealthRow({
       </div>
       <span
         className={`text-sm font-semibold ${isGood
-            ? "text-emerald-500"
-            : isWarn
-              ? "text-red-500"
-              : "text-blue-500"
+          ? "text-emerald-500"
+          : isWarn
+            ? "text-red-500"
+            : "text-blue-500"
           }`}
       >
         {value}
@@ -198,13 +198,13 @@ export default function Dashboard() {
           activityApi.recent(8),
         ]);
 
-      if (sumRes.status === "fulfilled")     setSummary((sumRes.value as any).data || null);
-      if (healthRes.status === "fulfilled")  setHealth((healthRes.value as any).data || null);
-      if (taRes.status === "fulfilled")      setTaskAnalytics((taRes.value as any).data || []);
-      if (ppRes.status === "fulfilled")      setProjectProgress((ppRes.value as any).data || []);
-      if (wlRes.status === "fulfilled")      setWorkload((wlRes.value as any).data || []);
-      if (costRes.status === "fulfilled")    setCostData((costRes.value as any).data || []);
-      if (actRes.status === "fulfilled")     setActivity((actRes.value as any).data || []);
+      if (sumRes.status === "fulfilled") setSummary((sumRes.value as any)?.data || null);
+      if (healthRes.status === "fulfilled") setHealth((healthRes.value as any)?.data || null);
+      if (taRes.status === "fulfilled") setTaskAnalytics((taRes.value as any)?.data || []);
+      if (ppRes.status === "fulfilled") setProjectProgress((ppRes.value as any)?.data || []);
+      if (wlRes.status === "fulfilled") setWorkload((wlRes.value as any)?.data || []);
+      if (costRes.status === "fulfilled") setCostData((costRes.value as any)?.data || []);
+      if (actRes.status === "fulfilled") setActivity((actRes.value as any)?.data || []);
     } finally {
       setLoading(false);
     }
@@ -288,11 +288,11 @@ export default function Dashboard() {
             <p className="text-sm text-center text-gray-400 py-8">No health data available</p>
           ) : (
             <>
-              <HealthRow label="Time"     value={health.time}     icon="⏱" />
-              <HealthRow label="Tasks"    value={health.tasks}    icon="📋" />
+              <HealthRow label="Time" value={health.time} icon="⏱" />
+              <HealthRow label="Tasks" value={health.tasks} icon="📋" />
               <HealthRow label="Workload" value={health.workload} icon="👤" />
               <HealthRow label="Progress" value={health.progress} icon="📈" />
-              <HealthRow label="Cost"     value={health.cost}     icon="💰" />
+              <HealthRow label="Cost" value={health.cost} icon="💰" />
             </>
           )}
         </div>
@@ -409,9 +409,9 @@ export default function Dashboard() {
                   formatter={(value) => [`$${(Number(value ?? 0) / 1000).toFixed(0)}k`]}
                 />
                 <Legend />
-                <Bar dataKey="actual"  fill="#f59e0b" radius={[4, 4, 0, 0]} name="Actual" />
+                <Bar dataKey="actual" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Actual" />
                 <Bar dataKey="planned" fill="#6366f1" radius={[4, 4, 0, 0]} name="Planned" />
-                <Bar dataKey="budget"  fill="#10b981" radius={[4, 4, 0, 0]} name="Budget" />
+                <Bar dataKey="budget" fill="#10b981" radius={[4, 4, 0, 0]} name="Budget" />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -464,8 +464,8 @@ export default function Dashboard() {
                       <td className="py-3 text-center">
                         <span
                           className={`font-semibold ${item.overdue > 0
-                              ? "text-red-500"
-                              : "text-gray-400 dark:text-gray-500"
+                            ? "text-red-500"
+                            : "text-gray-400 dark:text-gray-500"
                             }`}
                         >
                           {item.overdue}

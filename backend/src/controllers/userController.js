@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Role = require('../models/Role');
+const bcrypt = require('bcryptjs');
 const { successResponse, errorResponse, getPagination, paginatedResponse, getClientIp } = require('../utils/helpers');
 const { createAuditLog } = require('../utils/auditLog');
 
@@ -174,3 +175,59 @@ exports.getUserSessions = async (req, res, next) => {
     next(err);
   }
 };
+
+// ─── Profile Management ───────────────────────────────────────────────────────
+
+exports.getMe = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate('roleId', 'name displayName')
+      .populate('manager', 'name email');
+    if (!user) return errorResponse(res, 'User not found.', 404);
+    return successResponse(res, user, 'Profile fetched.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.updateMe = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return errorResponse(res, 'User not found.', 404);
+
+    const editableFields = [
+      'name', 'phone', 'birthday', 'gender', 'address', 
+      'emergencyContact', 'profileImage', 'skills'
+    ];
+
+    editableFields.forEach(field => {
+      if (req.body[field] !== undefined) user[field] = req.body[field];
+    });
+
+    await user.save();
+    return successResponse(res, user, 'Profile updated.');
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return errorResponse(res, 'Both current and new passwords are required.', 400);
+    }
+
+    const user = await User.findById(req.user._id).select('+passwordHash');
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) return errorResponse(res, 'Incorrect current password.', 401);
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    return successResponse(res, null, 'Password changed successfully.');
+  } catch (err) {
+    next(err);
+  }
+};
+

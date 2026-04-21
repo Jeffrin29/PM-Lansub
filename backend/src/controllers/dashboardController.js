@@ -8,31 +8,56 @@ const { successResponse, errorResponse } = require('../utils/helpers');
 // GET /api/dashboard/summary
 const getSummary = async (req, res) => {
   try {
-    const { organizationId } = req.user;
+    const { role, userId, organizationId } = req.user;
+    console.log(`[DASHBOARD DEBUG] Summary Request by ${userId} (${role}) in Org ${organizationId}`);
+    console.log(`[DEBUG CONTEXT] User Object:`, req.user);
+    console.log(`[DEBUG CONTEXT] Org Filter:`, req.orgFilter);
+
+    let projectFilter = { ...req.orgFilter };
+    let taskFilter = { ...req.orgFilter };
+
+    if (role === 'employee') {
+      projectFilter['teamMembers.userId'] = userId;
+      taskFilter.assignedTo = userId;
+    } else if (role === 'project_manager' || role === 'manager') {
+      // Consistent with projectController: PMs see owned or member projects
+      projectFilter.$or = [{ owner: userId }, { 'teamMembers.userId': userId }];
+      taskFilter.$or = [{ assignedTo: userId }, { createdBy: userId }];
+    }
 
     const [totalProjects, activeProjects, allTasks, overdueTasksCount] = await Promise.all([
-      Project.countDocuments({ organizationId }),
-      Project.countDocuments({ organizationId, status: 'active' }),
-      Task.find({ organizationId }).select('status dueDate').lean(),
+      Project.countDocuments(projectFilter),
+      Project.countDocuments({ 
+        ...projectFilter, 
+        status: { $in: ['active', 'in_progress', 'review'] } 
+      }),
+      Task.find(taskFilter).select('status dueDate').lean(),
       Task.countDocuments({
-        organizationId,
-        status: { $ne: 'done' },
+        ...taskFilter,
+        status: { $nin: ['complete', 'completed'] },
         dueDate: { $lt: new Date() },
       }),
     ]);
 
-    const completedTasks = allTasks.filter((t) => t.status === 'done').length;
+    const tasksArr = allTasks || [];
+    const completedTasks = tasksArr.filter((t) => 
+      ['complete', 'completed'].includes(String(t.status).toLowerCase())
+    ).length;
     const teamUtilization =
-      allTasks.length > 0 ? Math.round((completedTasks / allTasks.length) * 100) : 0;
+      tasksArr.length > 0 ? Math.round((completedTasks / tasksArr.length) * 100) : 0;
 
-    return successResponse(res, {
-      totalProjects,
-      activeProjects,
-      completedTasks,
-      overdueTasks: overdueTasksCount,
-      teamUtilization,
-    });
+    const data = {
+      totalProjects: totalProjects || 0,
+      activeProjects: activeProjects || 0,
+      completedTasks: completedTasks || 0,
+      overdueTasks: overdueTasksCount || 0,
+      teamUtilization: teamUtilization || 0,
+    };
+
+    console.log("[DASHBOARD_RES] Summary:", data);
+    return successResponse(res, data);
   } catch (err) {
+    console.error("[DASHBOARD ERROR] getSummary:", err);
     return errorResponse(res, err.message, 500);
   }
 };
@@ -40,40 +65,52 @@ const getSummary = async (req, res) => {
 // GET /api/dashboard/health
 const getHealth = async (req, res) => {
   try {
-    const { organizationId } = req.user;
+    const { role, userId } = req.user;
     const now = new Date();
 
+    let taskFilter = { ...req.orgFilter };
+    let projectFilter = { ...req.orgFilter, status: 'active' };
+
+    if (role === 'employee') {
+      taskFilter.assignedTo = userId;
+      projectFilter['teamMembers.userId'] = userId;
+    } else if (role === 'project_manager' || role === 'manager') {
+      taskFilter.$or = [{ assignedTo: userId }, { createdBy: userId }];
+      projectFilter.owner = userId;
+    }
+
     const [tasks, projects] = await Promise.all([
-      Task.find({ organizationId }).select('status dueDate assignee estimatedHours').lean(),
-      Project.find({ organizationId, status: 'active' })
+      Task.find(taskFilter).select('status dueDate assignedTo estimatedHours').lean(),
+      Project.find(projectFilter)
         .select('completionPercentage budget startDate endDate')
         .lean(),
     ]);
 
-    const totalTasks = tasks.length;
-    const doneTasks = tasks.filter((t) => t.status === 'done').length;
-    const overdueTasks = tasks.filter((t) => t.status !== 'done' && t.dueDate && t.dueDate < now).length;
+    const tasksArr = tasks || [];
+    const projectsArr = projects || [];
+
+    const totalTasks = tasksArr.length;
+    const doneTasks = tasksArr.filter((t) => t.status === 'complete' || t.status === 'completed').length;
+    const overdueTasks = tasksArr.filter((t) => (t.status !== 'complete' && t.status !== 'completed') && t.dueDate && t.dueDate < now).length;
     const remainingTasks = totalTasks - doneTasks;
     const progressPct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-    // Cost analysis based on budget
     let budgetStatus = '0% under budget';
-    if (projects.length > 0) {
-      const totalBudget = projects.reduce((a, p) => a + (p.budget?.allocated || 0), 0);
-      const totalSpent = projects.reduce((a, p) => a + (p.budget?.spent || 0), 0);
-      if (totalBudget > 0) {
-        const underPct = Math.round(((totalBudget - totalSpent) / totalBudget) * 100);
+    if (projectsArr.length > 0) {
+      const totalAllocated = projectsArr.reduce((a, p) => a + (p.budget?.allocated || 0), 0);
+      const totalSpent = projectsArr.reduce((a, p) => a + (p.budget?.spent || 0), 0);
+      if (totalAllocated > 0) {
+        const underPct = Math.round(((totalAllocated - totalSpent) / totalAllocated) * 100);
         budgetStatus = `${Math.abs(underPct)}% ${underPct >= 0 ? 'under' : 'over'} budget`;
       }
     }
 
-    // Time analysis
     let timeStatus = 'On schedule';
-    if (projects.length > 0) {
-      const avgCompletion =
-        projects.reduce((a, p) => a + (p.completionPercentage || 0), 0) / projects.length;
-      const firstProject = projects[0];
-      if (firstProject.startDate && firstProject.endDate) {
+    if (projectsArr.length > 0) {
+      const activeProjs = projectsArr.filter(p => p.startDate && p.endDate);
+      if (activeProjs.length > 0) {
+        const avgCompletion = activeProjs.reduce((a, p) => a + (p.completionPercentage || p.completion || 0), 0) / activeProjs.length;
+        const firstProject = activeProjs[0];
         const totalDuration = firstProject.endDate - firstProject.startDate;
         const elapsed = now - firstProject.startDate;
         const expectedPct = totalDuration > 0 ? Math.round((elapsed / totalDuration) * 100) : 0;
@@ -97,13 +134,21 @@ const getHealth = async (req, res) => {
 // GET /api/dashboard/task-analytics
 const getTaskAnalytics = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const tasks = await Task.find({ organizationId }).select('status isBlocked').lean();
+    const { role, userId } = req.user;
+    let filter = { ...req.orgFilter };
 
-    const notStarted = tasks.filter((t) => t.status === 'todo').length;
-    const inProgress = tasks.filter((t) => t.status === 'in_progress' || t.status === 'review').length;
-    const completed = tasks.filter((t) => t.status === 'done').length;
-    const blocked = tasks.filter((t) => t.isBlocked).length;
+    if (role === 'employee') {
+      filter.assignedTo = userId;
+    } else if (role === 'project_manager' || role === 'manager') {
+      filter.$or = [{ assignedTo: userId }, { createdBy: userId }];
+    }
+
+    const tasksArr = await Task.find(filter).select('status isBlocked').lean();
+
+    const notStarted = tasksArr.filter((t) => t.status === 'todo' || t.status === 'backlog').length;
+    const inProgress = tasksArr.filter((t) => t.status === 'in_progress' || t.status === 'in progress').length;
+    const completed = tasksArr.filter((t) => t.status === 'complete' || t.status === 'completed').length;
+    const blocked = tasksArr.filter((t) => t.isBlocked).length;
 
     return successResponse(res, [
       { name: 'Not Started', value: notStarted, color: '#94a3b8' },
@@ -119,29 +164,31 @@ const getTaskAnalytics = async (req, res) => {
 // GET /api/dashboard/project-progress
 const getProjectProgress = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const projects = await Project.find({ organizationId })
-      .select('projectTitle completionPercentage status')
+    const { role, userId } = req.user;
+    let filter = { ...req.orgFilter };
+
+    if (role === 'employee') {
+      filter['teamMembers.userId'] = userId;
+    } else if (role === 'project_manager' || role === 'manager') {
+      filter.owner = userId;
+    }
+
+    const projects = await Project.find(filter)
+      .select('name completion completionPercentage status')   // Project.name
       .limit(10)
       .lean();
 
-    const data = projects.map((p) => ({
-      name: p.projectTitle.length > 20 ? p.projectTitle.slice(0, 18) + '…' : p.projectTitle,
-      progress: p.completionPercentage || 0,
+    const data = (projects || []).map((p) => ({
+      name: (p.name || '').length > 20
+        ? (p.name || '').slice(0, 18) + '…'
+        : (p.name || 'Untitled'),
+      progress: p.completionPercentage || p.completion || 0,
       status: p.status,
     }));
 
-    // Fallback phases if no projects
-    if (data.length === 0) {
-      return successResponse(res, [
-        { name: 'Design', progress: 80 },
-        { name: 'Development', progress: 45 },
-        { name: 'Testing', progress: 20 },
-        { name: 'Deployment', progress: 5 },
-      ]);
-    }
-
-    return successResponse(res, data);
+    return successResponse(res, data.length > 0 ? data : [
+      { name: 'No Projects', progress: 0 }
+    ]);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -150,30 +197,39 @@ const getProjectProgress = async (req, res) => {
 // GET /api/dashboard/workload
 const getWorkload = async (req, res) => {
   try {
-    const { organizationId } = req.user;
+    const { role, userId } = req.user;
     const now = new Date();
 
-    const tasks = await Task.find({ organizationId, assignee: { $ne: null } })
-      .select('assignee status dueDate')
-      .populate('assignee', 'name email')
+    let filter = { ...req.orgFilter, assignedTo: { $ne: null } };
+
+    if (role === 'employee') {
+      filter.assignedTo = userId;
+    } else if (role === 'project_manager' || role === 'manager') {
+      const myProjects = await Project.find({ ...req.orgFilter, owner: userId }).select('_id').lean();
+      filter.projectId = { $in: myProjects.map(p => p._id) };
+    }
+
+    const tasks = await Task.find(filter)
+      .select('assignedTo status dueDate')
+      .populate('assignedTo', 'name email')
       .lean();
 
-    // Group by assignee
     const map = {};
-    for (const task of tasks) {
-      if (!task.assignee) continue;
-      const uid = task.assignee._id.toString();
+    const tasksArr = tasks || [];
+    for (const task of tasksArr) {
+      if (!task.assignedTo) continue;
+      const uid = task.assignedTo._id.toString();
       if (!map[uid]) {
         map[uid] = {
-          user: task.assignee.name || task.assignee.email,
+          user: task.assignedTo.name || task.assignedTo.email,
           assigned: 0,
           completed: 0,
           overdue: 0,
         };
       }
       map[uid].assigned++;
-      if (task.status === 'done') map[uid].completed++;
-      if (task.status !== 'done' && task.dueDate && task.dueDate < now) map[uid].overdue++;
+      if (task.status === 'complete' || task.status === 'completed') map[uid].completed++;
+      if (task.status !== 'complete' && task.status !== 'completed' && task.dueDate && task.dueDate < now) map[uid].overdue++;
     }
 
     return successResponse(res, Object.values(map));
@@ -182,23 +238,24 @@ const getWorkload = async (req, res) => {
   }
 };
 
-// GET /api/activity/recent
+// GET /api/dashboard/recent-activity
 const getRecentActivity = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const { page, limit, skip, sort } = getPagination(req.query);
+    const { role, userId } = req.user;
+    const limit = parseInt(req.query.limit) || 10;
 
-    const [activities, total] = await Promise.all([
-      Activity.find({ organizationId })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('userId', 'name email')
-        .lean(),
-      Activity.countDocuments({ organizationId }),
-    ]);
+    let filter = { ...req.orgFilter };
+    if (role === 'employee') {
+      filter.userId = userId;
+    }
 
-    return successResponse(res, paginatedResponse(activities, total, page, limit));
+    const activities = await Activity.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate('userId', 'name email')
+      .lean();
+
+    return successResponse(res, activities || []);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -207,27 +264,30 @@ const getRecentActivity = async (req, res) => {
 // GET /api/dashboard/cost-analysis
 const getCostAnalysis = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const projects = await Project.find({ organizationId })
-      .select('projectTitle budget createdAt')
+    const { role, userId } = req.user;
+
+    let filter = { ...req.orgFilter };
+    if (role === 'employee') {
+      filter['teamMembers.userId'] = userId;
+    } else if (role === 'project_manager' || role === 'manager') {
+      filter.owner = userId;
+    }
+
+    const projectsArr = await Project.find(filter)
+      .select('name budget createdAt')   // Project.name is the correct field
       .lean();
 
-    // Map projects to months for the chart trend
-    // In a real app we'd aggregate expenses, but here we'll use budget fields
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const currentMonth = new Date().getMonth();
     const result = [];
 
     for (let i = Math.max(0, currentMonth - 3); i <= currentMonth; i++) {
       const monthName = months[i];
-      let actual = 0;
-      let planned = 0;
-      let budget = 0;
+      let actual = 0, planned = 0, budget = 0;
 
-      projects.forEach(p => {
-        // Simple logic: if project created in or before this month, it contributes
-        if (p.createdAt.getMonth() <= i) {
-          actual += (p.budget?.spent || 0) / 4; // Mocking monthly spread
+      projectsArr.forEach(p => {
+        if (p.createdAt && p.createdAt.getMonth() <= i) {
+          actual += (p.budget?.spent || 0) / 4;
           planned += (p.budget?.allocated || 0) / 4;
           budget += (p.budget?.allocated || 0) / 4;
         }
@@ -250,26 +310,34 @@ const getCostAnalysis = async (req, res) => {
 // GET /api/dashboard/blocking-analytics
 const getBlockingAnalytics = async (req, res) => {
   try {
-    const { organizationId } = req.user;
-    const tasks = await Task.find({ organizationId, isBlocked: true })
+    const { role, userId } = req.user;
+
+    let filter = { ...req.orgFilter, isBlocked: true };
+    if (role === 'employee') {
+      filter.assignedTo = userId;
+    } else if (role === 'project_manager' || role === 'manager') {
+      filter.$or = [{ assignedTo: userId }, { createdBy: userId }];
+    }
+
+    const tasksArr = await Task.find(filter)
       .select('title blockedReason projectId')
-      .populate('projectId', 'projectTitle')
+      .populate('projectId', 'name')   // Project.name is the correct field
       .lean();
 
-    const reasons = tasks.reduce((acc, t) => {
+    const reasons = tasksArr.reduce((acc, t) => {
       const reason = t.blockedReason || 'Unknown';
       acc[reason] = (acc[reason] || 0) + 1;
       return acc;
     }, {});
 
     return successResponse(res, {
-      totalBlocked: tasks.length,
+      totalBlocked: tasksArr.length,
       reasons: Object.entries(reasons).map(([name, value]) => ({ name, value })),
-      tasks: tasks.map(t => ({
+      tasks: tasksArr.map(t => ({
         id: t._id,
         title: t.title,
         reason: t.blockedReason,
-        project: t.projectId?.projectTitle
+        project: t.projectId?.name || t.projectId?.projectTitle   // safe fallback
       }))
     });
   } catch (err) {

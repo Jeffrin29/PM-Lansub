@@ -34,7 +34,7 @@ const getUsers = async (req, res) => {
 const createUser = async (req, res) => {
   try {
     const { organizationId } = req.user;
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     const exists = await User.findOne({ email, organizationId });
     if (exists) return errorResponse(res, 'User with this email already exists', 409);
@@ -42,13 +42,23 @@ const createUser = async (req, res) => {
     const bcrypt = require('bcryptjs');
     const hash = await bcrypt.hash(password || 'TempPass@123', 12);
 
+    const Role = require('../models/Role');
+    const roleName = (role || 'employee').toLowerCase();
+    let dbRole = await Role.findOne({ name: roleName, organizationId });
+    
+    if (!dbRole) {
+      // Fallback to any employee role in org
+      dbRole = await Role.findOne({ name: 'employee', organizationId });
+    }
+
     // ✅ STEP 1: Create User
     const user = await User.create({
       name,
       email,
       passwordHash: hash,
       organizationId,
-      roleId: null,
+      roleId: dbRole?._id || null,
+      role: dbRole?.name || 'employee',
       status: 'active',
     });
 
@@ -58,7 +68,9 @@ const createUser = async (req, res) => {
       userId: user._id,   // 🔥 LINK
       name,
       email,
-      role: req.body.role || 'Employee',
+      role: dbRole?.name || 'employee',
+      department: 'General',
+      status: 'active'
     });
 
     const safe = user.toObject();

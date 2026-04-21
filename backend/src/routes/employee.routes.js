@@ -3,7 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/authenticate');
-const { requireRole } = require('../middleware/requireRole');
+const { checkRole } = require('../middleware/checkRole');
 const { organizationIsolation } = require('../middleware/organizationIsolation');
 const hrms = require('../controllers/hrmsController');
 const emp = require('../controllers/employeeController');
@@ -17,7 +17,7 @@ router.get('/me', emp.getMyProfile);
 router.get('/stats', emp.getMyStats);
 
 // Admin-level employee management (CRUD) - role restricted
-router.use('/', requireRole(['Admin', 'Manager']));
+router.use('/', checkRole('admin', 'hr', 'project_manager', 'employee'));
 
 router.get('/', hrms.getEmployees);
 router.post('/', hrms.createEmployee);

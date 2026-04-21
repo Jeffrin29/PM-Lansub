@@ -59,6 +59,8 @@ export default function ProjectsTable({ projects, onView, onEdit, onDelete }: Pr
     );
   }
 
+  console.log("PROJECTS STATE:", projects);
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm min-w-[1200px]">
@@ -92,7 +94,7 @@ export default function ProjectsTable({ projects, onView, onEdit, onDelete }: Pr
                   onClick={() => onView(p)}
                   className="text-sm font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition text-left line-clamp-1 max-w-[180px]"
                 >
-                  {p.projectTitle}
+                  {p.name || p.projectTitle}
                 </button>
               </td>
 
@@ -108,9 +110,8 @@ export default function ProjectsTable({ projects, onView, onEdit, onDelete }: Pr
                 </span>
               </td>
 
-              {/* Team */}
               <td className="py-3.5 px-4">
-                <TeamAvatars members={p.assignedTeam ?? []} max={4} />
+                <TeamAvatars members={p.teamMembers ?? []} max={4} />
               </td>
 
               {/* Status */}
@@ -135,7 +136,7 @@ export default function ProjectsTable({ projects, onView, onEdit, onDelete }: Pr
 
               {/* Completion */}
               <td className="py-3.5 px-4 min-w-[120px]">
-                <ProgressBar value={p.completionPercentage ?? 0} />
+                <ProgressBar value={p.completion ?? 0} />
               </td>
 
               {/* Risk */}

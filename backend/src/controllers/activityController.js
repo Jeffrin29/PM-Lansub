@@ -1,53 +1,59 @@
 'use strict';
 const Activity = require('../models/Activity');
-const { successResponse, errorResponse, getPagination, paginatedResponse } = require('../utils/helpers');
+const { successResponse, errorResponse } = require('../utils/helpers');
 
-// GET /api/activity
-const getActivity = async (req, res) => {
+exports.getActivities = async (req, res) => {
   try {
+    const role = req.user.role?.toLowerCase();
+    const userId = req.user.userId;
     const { organizationId } = req.user;
-    const { page, limit, skip, sort } = getPagination(req.query);
+    const { module } = req.query;
+
     const filter = { organizationId };
-    if (req.query.userId) filter.userId = req.query.userId;
-    if (req.query.entityType) filter.entityType = req.query.entityType;
-    if (req.query.entityId) filter.entityId = req.query.entityId;
 
-    const [activities, total] = await Promise.all([
-      Activity.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .populate('userId', 'name email')
-        .lean(),
-      Activity.countDocuments(filter),
-    ]);
+    // RBAC: employees only see their own activity
+    if (role === 'employee') {
+      filter.userId = userId;
+    }
 
-    return successResponse(res, paginatedResponse(activities, total, page, limit));
+    if (module && module !== 'all') {
+      filter.entityType = module.toLowerCase();
+    }
+
+    const activities = await Activity.find(filter)
+      .populate('userId', 'name email avatar')
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    return successResponse(res, activities || [], 'Activities fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
 
-// POST /api/activity
-const createActivity = async (req, res) => {
+exports.getRecentActivities = async (req, res) => {
   try {
+    const role = req.user.role?.toLowerCase();
+    const userId = req.user.userId;
     const { organizationId } = req.user;
-    const { action, entityType, entityId, metadata } = req.body;
+    const limit = parseInt(req.query.limit) || 8;
 
-    const activity = await Activity.create({
-      userId: req.user._id,
-      organizationId,
-      action,
-      entityType,
-      entityId: entityId || null,
-      metadata: metadata || {},
-      createdBy: req.user._id,
-    });
+    const filter = { organizationId };
 
-    return successResponse(res, activity, 'Activity logged', 201);
+    // RBAC: employees only see their own activity
+    if (role === 'employee') {
+      filter.userId = userId;
+    }
+
+    const activities = await Activity.find(filter)
+      .populate('userId', 'name')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return successResponse(res, activities || [], 'Recent activities fetched.');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
 };
-
-module.exports = { getActivity, createActivity };

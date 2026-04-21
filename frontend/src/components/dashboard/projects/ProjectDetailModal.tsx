@@ -44,7 +44,7 @@ export default function ProjectDetailModal({ project, onClose, onEdit, onDelete 
           <div className="flex items-start justify-between p-6 border-b border-gray-100 dark:border-zinc-800">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {project.projectTitle}
+                {project.name || project.projectTitle}
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                 Project Detail
@@ -104,7 +104,7 @@ export default function ProjectDetailModal({ project, onClose, onEdit, onDelete 
 
             <div>
               <p className="text-xs text-gray-400 mb-2">Team</p>
-              <TeamAvatars members={project.assignedTeam ?? []} />
+              <TeamAvatars members={project.teamMembers ?? []} />
             </div>
 
             {project.attachments && project.attachments.length > 0 && (

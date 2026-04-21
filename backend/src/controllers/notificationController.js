@@ -1,107 +1,81 @@
+'use strict';
 const Notification = require('../models/Notification');
-const { successResponse, errorResponse, getPagination, paginatedResponse } = require('../utils/helpers');
+const User = require('../models/User');
+const { sendNotification } = require('../services/notificationService');
+const { successResponse, errorResponse } = require('../utils/helpers');
 
-// ─── List Notifications (for current user) ────────────────────────────────────
-exports.getNotifications = async (req, res, next) => {
+exports.getNotifications = async (req, res) => {
   try {
-    const { skip, limit, page, sort } = getPagination(req.query);
-    const { type, readStatus } = req.query;
+    const { organizationId } = req.user;
+    const { read } = req.query;
 
-    const filter = {
-      userId: req.user.userId,
-      ...req.orgFilter,
-    };
-    if (type) filter.type = type;
-    if (readStatus !== undefined) filter.readStatus = readStatus === 'true';
+    const filter = { userId: req.user._id, organizationId };
+    
+    // ✅ BIRTHDAY TRIGGER (Demo logic)
+    const currentUser = await User.findById(req.user._id);
+    if (currentUser?.birthday) {
+      const today = new Date();
+      const bday = new Date(currentUser.birthday);
+      if (today.getMonth() === bday.getMonth() && today.getDate() === bday.getDate()) {
+        const alreadyNotified = await Notification.findOne({
+          userId: req.user._id,
+          type: 'birthday',
+          createdAt: { 
+            $gte: new Date(today.setHours(0,0,0,0)), 
+            $lte: new Date(today.setHours(23,59,59,999)) 
+          }
+        });
+        if (!alreadyNotified) {
+          await sendNotification({
+            userId: req.user._id,
+            organizationId,
+            title: 'Happy Birthday!',
+            message: `The LANSUB team wishes you a fantastic day! 🎂`,
+            type: 'birthday'
+          });
+        }
+      }
+    }
 
-    const [notifications, total] = await Promise.all([
-      Notification.find(filter)
-        .sort(sort)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      Notification.countDocuments(filter),
-    ]);
+    if (read !== undefined) {
+      filter.readStatus = read === 'true';
+    }
 
-    const unreadCount = await Notification.countDocuments({
-      userId: req.user.userId,
-      organizationId: req.user.organizationId,
-      readStatus: false,
-    });
+    const notifications = await Notification.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
 
-    const formattedNotifications = notifications.map(n => ({
-      ...n,
-      read: n.readStatus // For frontend compatibility
-    }));
-
-    return successResponse(
-      res,
-      { ...paginatedResponse(formattedNotifications, total, page, limit), unreadCount },
-      'Notifications fetched.'
-    );
+    return successResponse(res, notifications, 'Notifications fetched.');
   } catch (err) {
-    next(err);
+    return errorResponse(res, err.message, 500);
   }
 };
 
-// ─── Mark One as Read ─────────────────────────────────────────────────────────
-exports.markAsRead = async (req, res, next) => {
+exports.markAsRead = async (req, res) => {
   try {
+    const { id } = req.params;
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.userId, organizationId: req.user.organizationId },
+      { _id: id, userId: req.user._id },
       { readStatus: true, readAt: new Date() },
       { new: true }
-    ).lean();
+    );
 
     if (!notification) return errorResponse(res, 'Notification not found.', 404);
-
-    return successResponse(res, {
-      ...notification,
-      read: notification.readStatus
-    }, 'Marked as read.');
+    return successResponse(res, notification, 'Marked as read.');
   } catch (err) {
-    next(err);
+    return errorResponse(res, err.message, 500);
   }
 };
 
-// ─── Mark All as Read ─────────────────────────────────────────────────────────
-exports.markAllAsRead = async (req, res, next) => {
+exports.markAllAsRead = async (req, res) => {
   try {
-    const result = await Notification.updateMany(
-      { userId: req.user.userId, organizationId: req.user.organizationId, readStatus: false },
+    await Notification.updateMany(
+      { userId: req.user._id, readStatus: false },
       { readStatus: true, readAt: new Date() }
     );
-    return successResponse(res, { updated: result.modifiedCount }, 'All notifications marked as read.');
+    return successResponse(res, null, 'All notifications marked as read.');
   } catch (err) {
-    next(err);
-  }
-};
-
-// ─── Delete a Notification ────────────────────────────────────────────────────
-exports.deleteNotification = async (req, res, next) => {
-  try {
-    const notification = await Notification.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user.userId,
-      organizationId: req.user.organizationId,
-    });
-    if (!notification) return errorResponse(res, 'Notification not found.', 404);
-    return successResponse(res, null, 'Notification deleted.');
-  } catch (err) {
-    next(err);
-  }
-};
-
-// ─── Delete All Read Notifications ────────────────────────────────────────────
-exports.deleteAllRead = async (req, res, next) => {
-  try {
-    const result = await Notification.deleteMany({
-      userId: req.user.userId,
-      organizationId: req.user.organizationId,
-      readStatus: true,
-    });
-    return successResponse(res, { deleted: result.deletedCount }, 'Read notifications cleared.');
-  } catch (err) {
-    next(err);
+    return errorResponse(res, err.message, 500);
   }
 };

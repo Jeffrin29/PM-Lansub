@@ -12,28 +12,23 @@ const authorize = (...requiredPermissions) => {
         return errorResponse(res, 'Authentication required.', 401);
       }
 
-      const role = req.user.role;
-      if (!role) {
-        return errorResponse(res, 'User has no role assigned.', 403);
+      const role = (req.user.role || '').toLowerCase();
+
+      // admin bypasses all permission checks
+      if (role === 'admin') return next();
+
+      // For non-admin roles, check permissions from roleId if available
+      let userPermissions = [];
+      if (req.user.roleId) {
+        const RoleModel = require('../models/Role');
+        const roleDoc = await RoleModel.findById(req.user.roleId)
+          .populate('permissions', 'name').lean();
+        if (roleDoc && roleDoc.permissions) {
+          userPermissions = roleDoc.permissions.map(p => p.name || p);
+        }
       }
 
-      // System admins bypass all permission checks
-      if (role.isSystemRole && role.name === 'super_admin') {
-        return next();
-      }
-
-      // Populate permissions if they are ObjectID refs (not already strings)
-      let userPermissions = role.permissions || [];
-      if (userPermissions.length > 0 && typeof userPermissions[0] === 'object' && userPermissions[0]._id) {
-        // Already populated objects
-        userPermissions = userPermissions.map((p) => p.name);
-      } else if (userPermissions.length > 0 && typeof userPermissions[0] !== 'string') {
-        // Fetch from DB
-        const perms = await Permission.find({ _id: { $in: userPermissions } }).select('name').lean();
-        userPermissions = perms.map((p) => p.name);
-      }
-
-      const missing = requiredPermissions.filter((p) => !userPermissions.includes(p));
+      const missing = requiredPermissions.filter(p => !userPermissions.includes(p));
       if (missing.length > 0) {
         return errorResponse(
           res,
@@ -57,18 +52,22 @@ const authorizeAny = (...requiredPermissions) => {
     try {
       if (!req.user) return errorResponse(res, 'Authentication required.', 401);
 
-      const role = req.user.role;
-      if (!role) return errorResponse(res, 'User has no role assigned.', 403);
+      const role = (req.user.role || '').toLowerCase();
 
-      if (role.isSystemRole && role.name === 'super_admin') return next();
+      // admin bypasses all
+      if (role === 'admin') return next();
 
-      let userPermissions = role.permissions || [];
-      if (userPermissions.length > 0 && typeof userPermissions[0] !== 'string') {
-        const perms = await Permission.find({ _id: { $in: userPermissions } }).select('name').lean();
-        userPermissions = perms.map((p) => p.name);
+      let userPermissions = [];
+      if (req.user.roleId) {
+        const RoleModel = require('../models/Role');
+        const roleDoc = await RoleModel.findById(req.user.roleId)
+          .populate('permissions', 'name').lean();
+        if (roleDoc && roleDoc.permissions) {
+          userPermissions = roleDoc.permissions.map(p => p.name || p);
+        }
       }
 
-      const hasAny = requiredPermissions.some((p) => userPermissions.includes(p));
+      const hasAny = requiredPermissions.some(p => userPermissions.includes(p));
       if (!hasAny) {
         return errorResponse(res, 'Access denied. Insufficient permissions.', 403);
       }
@@ -81,14 +80,12 @@ const authorizeAny = (...requiredPermissions) => {
 };
 
 /**
- * Require org admin or super admin role
+ * Require admin role (org admin or super admin — both normalized to 'admin' by authenticate.js)
  */
 const requireOrgAdmin = (req, res, next) => {
   if (!req.user) return errorResponse(res, 'Authentication required.', 401);
-  const role = req.user.role;
-  if (!role) return errorResponse(res, 'No role assigned.', 403);
-  const adminRoles = ['super_admin', 'org_admin'];
-  if (!adminRoles.includes(role.name)) {
+  const role = (req.user.role || '').toLowerCase();
+  if (role !== 'admin') {
     return errorResponse(res, 'Organization admin access required.', 403);
   }
   next();

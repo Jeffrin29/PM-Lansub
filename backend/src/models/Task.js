@@ -44,7 +44,7 @@ const taskSchema = new mongoose.Schema(
       ref: 'Organization',
       required: [true, 'Organization ID is required'],
     },
-    assignee: {
+    assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       default: null,
@@ -56,13 +56,19 @@ const taskSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['todo', 'in_progress', 'review', 'done'],
+      enum: ['backlog', 'todo', 'in_progress', 'complete'],
       default: 'todo',
     },
     priority: {
       type: String,
       enum: ['low', 'medium', 'high', 'urgent'],
       default: 'medium',
+    },
+    progress: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
     },
     startDate: {
       type: Date,
@@ -137,16 +143,29 @@ const taskSchema = new mongoose.Schema(
 taskSchema.index({ organizationId: 1 });
 taskSchema.index({ projectId: 1 });
 taskSchema.index({ projectId: 1, status: 1 });
-taskSchema.index({ assignee: 1, organizationId: 1 });
+taskSchema.index({ assignedTo: 1, organizationId: 1 });
 taskSchema.index({ organizationId: 1, dueDate: 1 });
 taskSchema.index({ title: 'text', description: 'text' });
 
-// ─── Pre-save ─────────────────────────────────────────────────────────────────
+// ─── Pre-save: Auto Sync & Validations ────────────────────────────────────────
 taskSchema.pre('save', function (next) {
-  if (this.status === 'done' && !this.completedAt) {
+  // 1. Progress/Status Sync
+  if (this.progress === 100 && this.status !== 'complete') {
+    this.status = 'complete';
+  } else if (this.status === 'complete' && this.progress !== 100) {
+    this.progress = 100;
+  }
+
+  // 2. Date Validation
+  if (this.startDate && this.dueDate && this.dueDate < this.startDate) {
+    return next(new Error('Due date cannot be before start date'));
+  }
+
+  // 3. Completion logic
+  if (this.status === 'complete' && !this.completedAt) {
     this.completedAt = new Date();
   }
-  if (this.status !== 'done') {
+  if (this.status !== 'complete') {
     this.completedAt = null;
     this.completedBy = null;
   }

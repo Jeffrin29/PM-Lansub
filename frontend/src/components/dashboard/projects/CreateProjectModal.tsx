@@ -11,8 +11,7 @@ import {
   FiCheckCircle,
 } from "react-icons/fi";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { projectsApi } from "../../../lib/api";
 
 const STATUS_OPTIONS  = ["Draft","Active","Review","Completed","Archived"];
 const PRIORITY_OPTIONS = ["Low","Medium","High","Critical"];
@@ -21,10 +20,7 @@ const RISK_OPTIONS    = ["Low","Medium","High"];
 // ─── Token helper ─────────────────────────────────────────────────────────────
 function getToken(): string | null {
   try {
-    const raw = localStorage.getItem("lansub-auth");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.accessToken ?? parsed?.token ?? null;
+    return localStorage.getItem("token");
   } catch {
     return null;
   }
@@ -34,10 +30,11 @@ function getToken(): string | null {
 interface Props {
   onClose: () => void;
   onCreated: () => void;
+  project?: any; // To support edit mode
 }
 
 interface FormState {
-  projectTitle: string;
+  name: string;
   description: string;
   owner: string;
   teamInput: string;          // comma-separated names
@@ -45,7 +42,7 @@ interface FormState {
   priority: string;
   startDate: string;
   endDate: string;
-  completionPercentage: string;
+  completion: string;
   riskLevel: string;
 }
 
@@ -73,20 +70,20 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function CreateProjectModal({ onClose, onCreated }: Props) {
+export default function CreateProjectModal({ onClose, onCreated, project }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<FormState>({
-    projectTitle: "",
-    description: "",
-    owner: "",
-    teamInput: "",
-    status: "Draft",
-    priority: "Medium",
-    startDate: "",
-    endDate: "",
-    completionPercentage: "0",
-    riskLevel: "Low",
+    name: project?.name ?? project?.projectTitle ?? "",
+    description: project?.description ?? "",
+    owner: project?.owner?.name ?? project?.owner ?? "",
+    teamInput: project?.teamMembers?.map((m: any) => m.userId?.name || m.userId).join(", ") ?? "",
+    status: project?.status ? project.status.charAt(0).toUpperCase() + project.status.slice(1) : "Draft",
+    priority: project?.priority ? project.priority.charAt(0).toUpperCase() + project.priority.slice(1) : "Medium",
+    startDate: project?.startDate ? new Date(project.startDate).toISOString().split('T')[0] : "",
+    endDate: project?.endDate ? new Date(project.endDate).toISOString().split('T')[0] : "",
+    completion: project?.completion?.toString() ?? "0",
+    riskLevel: project?.riskLevel ? project.riskLevel.charAt(0).toUpperCase() + project.riskLevel.slice(1) : "Low",
   });
 
   const [files, setFiles]       = useState<File[]>([]);
@@ -116,7 +113,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
     e.preventDefault();
     setSubmitError(null);
 
-    if (!form.projectTitle.trim()) {
+    if (!form.name?.trim()) {
       setSubmitError("Project name is required.");
       return;
     }
@@ -124,85 +121,69 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
     setSubmitting(true);
 
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {};
-      if (token) headers.Authorization = `Bearer ${token}`;
+      let payload: any;
+      const teamArr = form.teamInput
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((name) => ({ userId: name }));
 
-      let body: FormData | string;
-      let contentType: string | undefined;
+      // Prepare Payload
+      const payloadData: any = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        owner: form.owner.trim(),
+        status: form.status.toLowerCase(),
+        priority: form.priority.toLowerCase(),
+        startDate: form.startDate,
+        endDate: form.endDate,
+        riskLevel: form.riskLevel.toLowerCase(),
+        completion: parseInt(form.completion),
+        teamMembers: teamArr,
+      };
 
       if (files.length > 0) {
-        // Multipart for file uploads
         const fd = new FormData();
-        fd.append("projectTitle",         form.projectTitle.trim());
-        fd.append("description",          form.description.trim());
-        fd.append("status",               form.status);
-        fd.append("priority",             form.priority.toLowerCase());
-        fd.append("startDate",            form.startDate);
-        fd.append("endDate",              form.endDate);
-        fd.append("riskLevel",            form.riskLevel.toLowerCase());
-        fd.append("teamMembers", JSON.stringify([]));
-
-        // Team as JSON string
-        const teamArr = form.teamInput
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .map((name) => ({ name }));
-        fd.append("assignedTeam", JSON.stringify(teamArr));
-
-        files.forEach((f) => fd.append("attachments", f));
-        body = fd;
-      } else {
-        // JSON body
-        headers["Content-Type"] = "application/json";
-        contentType = "application/json";
-
-        const teamArr = form.teamInput
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .map((name) => ({ userId:name }));
-
-        body = JSON.stringify({
-          projectTitle: form.projectTitle.trim(),
-          description: form.description.trim(),
-
-          status: form.status.toLowerCase(),
-          priority: form.priority.toLowerCase(),
-
-          startDate: form.startDate
-            ? new Date(form.startDate).toISOString()
-            : undefined,
-
-          endDate: form.endDate
-            ? new Date(form.endDate).toISOString()
-            : undefined,
-
-          riskLevel: form.riskLevel.toLowerCase(),
-
-          teamMembers: [], // keep empty for now
+        Object.keys(payloadData).forEach(key => {
+          if (key === 'teamMembers') fd.append(key, JSON.stringify(payloadData[key]));
+          else fd.append(key, payloadData[key]);
         });
+        files.forEach((f) => fd.append("attachments", f));
+        payload = fd;
+      } else {
+        payload = payloadData;
       }
 
-      const res = await fetch(`${API_URL}/api/projects`, {
-        method: "POST",
-        headers,
-        body,
-      });
+      console.log("PROJECT PAYLOAD:", payload);
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.message ?? `Server error ${res.status}`);
+      if (project) {
+        await projectsApi.update(project._id, payload);
+      } else {
+        await projectsApi.create(payload);
       }
 
       setSuccess(true);
+
+      // Reset Form after success
+      setForm({
+        name: "",
+        description: "",
+        owner: "",
+        teamInput: "",
+        status: "Draft",
+        priority: "Medium",
+        startDate: "",
+        endDate: "",
+        completion: "0",
+        riskLevel: "Low",
+      });
+
       setTimeout(() => {
         onCreated();
         onClose();
       }, 900);
     } catch (err: any) {
-      setSubmitError(err.message ?? "Failed to create project.");
+      setSubmitError(err.message ?? "Failed to save project.");
     } finally {
       setSubmitting(false);
     }
@@ -231,10 +212,10 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-zinc-800 shrink-0">
             <div>
               <h2 className="text-base font-bold text-gray-900 dark:text-white">
-                Create New Project
+                {project ? "Edit Project" : "Create New Project"}
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Fill in the details to start a new project
+                {project ? "Update the project details" : "Fill in the details to start a new project"}
               </p>
             </div>
             <button
@@ -275,13 +256,12 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               </motion.div>
             )}
 
-            {/* Row 1 — Project Name (full width) */}
             <Field label="Project Name *">
               <input
-                name="projectTitle"
+                name="name"
                 type="text"
                 placeholder="e.g. Platform Redesign Q2"
-                value={form.projectTitle}
+                value={form.name}
                 onChange={handleChange}
                 className={inputCls}
                 required
@@ -381,19 +361,19 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               <Field label="Completion (%)">
                 <div className="space-y-1.5">
                   <input
-                    name="completionPercentage"
+                    name="completion"
                     type="range"
                     min={0}
                     max={100}
                     step={5}
-                    value={form.completionPercentage}
+                    value={form.completion}
                     onChange={handleChange}
                     className="w-full accent-blue-600"
                   />
                   <div className="flex justify-between text-[10px] text-gray-400">
                     <span>0%</span>
                     <span className="font-semibold text-blue-600 dark:text-blue-400 text-xs">
-                      {form.completionPercentage}%
+                      {form.completion}%
                     </span>
                     <span>100%</span>
                   </div>
@@ -497,7 +477,7 @@ export default function CreateProjectModal({ onClose, onCreated }: Props) {
               ) : (
                 <>
                   <FiPlusCircle size={14} />
-                  Create Project
+                  {project ? "Update Project" : "Create Project"}
                 </>
               )}
             </button>

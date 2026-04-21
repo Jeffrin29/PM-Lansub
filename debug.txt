@@ -1,0 +1,20 @@
+﻿"use client";
+
+import React, { useMemo, useState } from "react";
+import { motion, number, progress } from "framer-motion";
+import { FiChevronLeft, FiChevronRight, FiCalendar } from "react-icons/fi";
+
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€âinterface Task {
+  id: string;
+  title: string;
+  status: string;
+  user: string;
+  priority?: string;
+  startDate?: string;
+  endDate?: string;
+  progress?: number;
+  project?: string;
+}
+
+interface Props {
+  tasks: Task[];
