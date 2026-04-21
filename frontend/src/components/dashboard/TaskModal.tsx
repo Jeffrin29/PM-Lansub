@@ -77,16 +77,33 @@ export default function TaskModal({ task, onClose, onSave }: any) {
 
         if (cancelled) return;
 
-        // Normalise project list
-        const projectList: any[] =
-          projRes?.data?.data ?? projRes?.data ?? projRes ?? [];
-        console.log("[TaskModal] Projects:", projectList.length);
+        // Normalise project list (Handle paginated { items: [] } or simple [])
+        let projectList: any[] = [];
+        const projData = projRes?.data;
+        if (projData?.items && Array.isArray(projData.items)) {
+          projectList = projData.items;
+        } else if (Array.isArray(projData)) {
+          projectList = projData;
+        } else if (projRes?.data?.data && Array.isArray(projRes.data.data)) {
+           projectList = projRes.data.data;
+        } else {
+           projectList = Array.isArray(projRes) ? projRes : [];
+        }
+        console.log("[TaskModal] Projects normalized:", projectList.length);
 
-        // Normalise user list (GET /api/users returns paginated { data: [...] })
-        const rawUsers =
-          usersRes?.data?.data ?? usersRes?.data ?? usersRes ?? [];
-        const userList: any[] = Array.isArray(rawUsers) ? rawUsers : [];
-        console.log("[TaskModal] Users:", userList);
+        // Normalise user list (Handle paginated { items: [] } or simple [])
+        let userList: any[] = [];
+        const userData = usersRes?.data;
+        if (userData?.items && Array.isArray(userData.items)) {
+          userList = userData.items;
+        } else if (Array.isArray(userData)) {
+          userList = userData;
+        } else if (usersRes?.data?.data && Array.isArray(usersRes.data.data)) {
+           userList = usersRes.data.data;
+        } else {
+           userList = Array.isArray(usersRes) ? usersRes : [];
+        }
+        console.log("[TaskModal] Users normalized:", userList.length);
 
         setProjects(projectList);
         setUsers(userList);

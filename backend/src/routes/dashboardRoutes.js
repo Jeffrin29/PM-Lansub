@@ -8,6 +8,7 @@ const { organizationIsolation } = require('../middleware/organizationIsolation')
 
 router.use(authenticate, organizationIsolation);
 
+router.get('/', ctrl.getUnifiedDashboard);
 router.get('/overview', overviewController.getOverview);
 router.get('/summary',            ctrl.getSummary);
 router.get('/health',             ctrl.getHealth);

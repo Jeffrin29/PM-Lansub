@@ -111,7 +111,7 @@ exports.getOverview = async (req, res) => {
 
     const finalData = {
       urgentTasks: urgentTasks || [],
-      users: users || [],
+      teamMembers: users || [],
       projectProgress: projectProgress || [],
       comments: finalComments || [],
       stats

@@ -212,7 +212,7 @@ export default function ProjectsPage() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full max-w-7xl mx-auto px-6 space-y-7">
+    <div className="w-full max-w-[100vw] mx-auto px-6 space-y-7 overflow-x-hidden">
 
       {/* ── Page Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between">

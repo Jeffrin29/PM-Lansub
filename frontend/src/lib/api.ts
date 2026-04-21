@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000/api";
 
 // ── Token helpers ────────────────────────────────────────────────────────────
 
@@ -202,6 +202,11 @@ export const dashboardApi = {
   workload: () => api.get<any>('/dashboard/workload'),
   costAnalysis: () => api.get<any>('/dashboard/cost-analysis'),
   recentActivity: (limit = 10) => api.get<any>(`/dashboard/recent-activity?limit=${limit}`),
+  getUnified: () => api.get<any>('/dashboard'),
+};
+
+export const overviewApi = {
+  get: () => api.get<any>('/overview'),
 };
 
 // HRMS / HR Admin

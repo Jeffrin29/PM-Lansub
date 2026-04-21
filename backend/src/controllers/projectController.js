@@ -8,16 +8,22 @@ const path = require('path');
 // ─── List Projects ────────────────────────────────────────────────────────────
 exports.getProjects = async (req, res) => {
   try {
-    console.log("ORG ID:", req.organizationId);
+    const { role, userId, organizationId } = req.user;
+    let filter = { ...req.orgFilter };
 
-    const projects = await Project.find({
-      organizationId: req.organizationId
-    })
-    .populate("owner", "name email")
-    .sort({ createdAt: -1 });
+    // RBAC: employees/managers see only their assigned/owned projects
+    if (role === 'employee' || role === 'project_manager' || role === 'manager') {
+      filter.$or = [
+        { owner: userId },
+        { 'teamMembers.userId': userId }
+      ];
+    }
 
-    console.log("PROJECTS FOUND:", projects.length);
+    const projects = await Project.find(filter)
+      .populate("owner", "name email")
+      .sort({ createdAt: -1 });
 
+    console.log(`[PROJECTS] Found ${projects.length} for User: ${userId}`);
     res.json(projects);
   } catch (err) {
     res.status(500).json({ message: err.message });

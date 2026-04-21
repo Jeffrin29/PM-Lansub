@@ -108,6 +108,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/overview', authenticate, organizationIsolation, require('./controllers/overviewController').getOverview);
 app.use('/api/timesheets', timesheetRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/discussions', discussionRoutes);

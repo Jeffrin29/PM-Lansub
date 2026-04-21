@@ -18,7 +18,8 @@ interface Props {
 }
 
 export default function ProjectStatusBadge({ status }: Props) {
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.Draft;
+  const normalizedStatus = (status || "Draft").charAt(0).toUpperCase() + (status || "Draft").slice(1).toLowerCase() as ProjectStatus;
+  const cfg = STATUS_CONFIG[normalizedStatus] ?? STATUS_CONFIG.Draft;
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.className}`}
