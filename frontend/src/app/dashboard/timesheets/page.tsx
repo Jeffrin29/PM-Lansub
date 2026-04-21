@@ -9,14 +9,14 @@ interface Timesheet {
   date: string;
   user?: { _id: string; name: string };
   task?: { _id: string; title: string };
-  project: { _id: string; projectTitle: string };
+  project: { _id: string; name?: string; projectTitle?: string };
   hours: number;
   billingType: "billable" | "non-billable" | "internal";
   status: "pending" | "approved" | "rejected";
   notes: string;
 }
 
-interface Project { _id: string; projectTitle: string }
+interface Project { _id: string; name?: string; projectTitle?: string }
 interface Task { _id: string; title: string }
 
 // ── Status Badge ──────────────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ function TimeEntryModal({
             >
               <option value="">Select project…</option>
               {projects.map((p) => (
-                <option key={p._id} value={p._id}>{p.projectTitle}</option>
+                <option key={p._id} value={p._id}>{p.name || p.projectTitle || "Untitled"}</option>
               ))}
             </select>
           </div>
@@ -407,7 +407,7 @@ export default function TimesheetsPage() {
                       {ts.task?.title || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-300">
-                      {ts.project?.projectTitle || "—"}
+                      {ts.project?.name || ts.project?.projectTitle || "—"}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">

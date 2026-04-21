@@ -28,8 +28,8 @@ export default function DashboardLayout({
 
         {/* SCROLLABLE PAGE CONTENT */}
 
-        <main className="flex-1 overflow-y-auto py-8">
-          <div className="w-full max-w-7xl mx-auto px-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden py-8">
+          <div className="w-full max-w-full mx-auto px-6 overflow-hidden">
             {children}
           </div>
         </main>

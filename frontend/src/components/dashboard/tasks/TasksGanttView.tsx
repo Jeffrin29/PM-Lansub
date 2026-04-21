@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
@@ -160,9 +160,9 @@ export default function TasksGanttView({
       </div>
 
       {/* ── Scrollable Body ── */}
-      <div className="flex-1 bg-white dark:bg-zinc-950" style={{ overflow: 'auto', minWidth: 0, maxWidth: '100%' }}>
-        {/* FIX: removed extra wrapper div — minWidth now lives directly on the single content div */}
-        <div style={{ minWidth: 280 + (daysInMonth * DAY_WIDTH) }} className="flex flex-col min-h-full">
+      <div className="flex-1 overflow-x-auto w-full">
+        <div className="bg-white dark:bg-zinc-950" style={{ overflow: 'hidden', minWidth: 280 + (daysInMonth * DAY_WIDTH), maxWidth: '100%' }}>
+          <div className="flex flex-col min-h-full">
 
           {/* Calendar Day Header (Sticky) */}
           <div className="sticky top-0 z-40 flex items-stretch border-b-2 border-gray-100 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl">
@@ -204,7 +204,7 @@ export default function TasksGanttView({
                 const geo = barGeometry(task._start, task._end);
                 return (
                   <div
-                    key={task.id}
+                    key={task.id || (task as any)._id || rowIdx}
                     className="flex items-stretch hover:bg-gray-50/50 dark:hover:bg-zinc-900/10 transition-colors group"
                   >
                     {/* Task Anchor Column (Sticky Left) */}
@@ -299,6 +299,7 @@ export default function TasksGanttView({
               })
             )}
           </div>
+        </div>
         </div>
       </div>
 

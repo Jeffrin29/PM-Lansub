@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import api, { calendarApi } from "../../../lib/api";
+import api, { calendarApi, overviewApi } from "../../../lib/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface CalendarDayData {
@@ -14,16 +14,16 @@ interface CalendarDayData {
 // ── Avatar ───────────────────────────────────────────────────────────────────
 function Avatar({ name, size = 10 }: { name: string; size?: number }) {
   const colors = [
-    "from-blue-400 to-blue-600",
-    "from-violet-400 to-purple-600",
-    "from-rose-400 to-pink-600",
-    "from-amber-400 to-orange-600",
-    "from-emerald-400 to-teal-600",
+    "bg-blue-500",
+    "bg-violet-500",
+    "bg-rose-500",
+    "bg-amber-500",
+    "bg-emerald-500",
   ];
   const idx = name.charCodeAt(0) % colors.length;
   return (
     <div
-      className={`w-${size} h-${size} rounded-full bg-gradient-to-br ${colors[idx]} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}
+      className={`w-${size} h-${size} rounded-full ${colors[idx]} flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-sm`}
     >
       {name.charAt(0).toUpperCase()}
     </div>
@@ -33,15 +33,15 @@ function Avatar({ name, size = 10 }: { name: string; size?: number }) {
 // ── Priority Badge ────────────────────────────────────────────────────────────
 function PriorityBadge({ priority }: { priority: string }) {
   const styles: Record<string, string> = {
-    urgent: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
-    high:   "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400",
-    medium: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400",
-    low:    "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400",
+    urgent: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 border border-red-200 dark:border-red-800",
+    high:   "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400 border border-orange-200 dark:border-orange-800",
+    medium: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800",
+    low:    "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400 border border-gray-200 dark:border-zinc-700",
   };
   const p = (priority || "low").toLowerCase();
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles[p] ?? styles.low}`}>
-      {p.charAt(0).toUpperCase() + p.slice(1)}
+    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tight ${styles[p] ?? styles.low}`}>
+      {p}
     </span>
   );
 }
@@ -61,7 +61,7 @@ function dueDateLabel(date?: string) {
   };
 }
 
-// ── Mini Calendar with day-click ─────────────────────────────────────────────
+// ── Mini Calendar ─────────────────────────────────────────────────────────────
 function MiniCalendar({
   onDateClick,
   selectedDate,
@@ -84,26 +84,26 @@ function MiniCalendar({
     `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
   return (
-    <div>
+    <div className="bg-gray-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-gray-100 dark:border-zinc-800 shadow-inner">
       <div className="flex items-center justify-between mb-4">
         <button
-          id="cal-prev-btn"
           onClick={() => setCurrent(new Date(year, month - 1, 1))}
-          className="w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 flex items-center justify-center text-gray-500 transition"
+          className="p-1 hover:bg-white dark:hover:bg-zinc-800 rounded transition text-gray-400"
         >‹</button>
-        <span className="font-semibold text-sm">{monthNames[month]} {year}</span>
+        <span className="font-bold text-xs uppercase tracking-wider text-gray-700 dark:text-gray-300">
+           {monthNames[month]} {year}
+        </span>
         <button
-          id="cal-next-btn"
           onClick={() => setCurrent(new Date(year, month + 1, 1))}
-          className="w-7 h-7 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 flex items-center justify-center text-gray-500 transition"
+          className="p-1 hover:bg-white dark:hover:bg-zinc-800 rounded transition text-gray-400"
         >›</button>
       </div>
-      <div className="grid grid-cols-7 text-center text-xs text-gray-400 mb-2">
+      <div className="grid grid-cols-7 text-center text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2">
         {["S","M","T","W","T","F","S"].map((d, i) => (
-          <div key={i} className="font-medium">{d}</div>
+          <div key={i}>{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-sm">
+      <div className="grid grid-cols-7 gap-1 text-center">
         {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
@@ -117,12 +117,12 @@ function MiniCalendar({
             <div
               key={day}
               onClick={() => onDateClick(dateStr)}
-              className={`p-1.5 rounded-lg cursor-pointer transition text-xs ${
+              className={`p-1.5 rounded-lg cursor-pointer transition text-[10px] font-semibold ${
                 isSelected
-                  ? "bg-blue-600 text-white font-bold shadow ring-2 ring-blue-400"
+                  ? "bg-blue-600 text-white shadow-md"
                   : isToday
-                  ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold"
-                  : "hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300"
+                  ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20"
+                  : "hover:bg-white dark:hover:bg-zinc-800 text-gray-600 dark:text-gray-400"
               }`}
             >
               {day}
@@ -146,79 +146,54 @@ function CalendarDayPanel({
 }) {
   if (!selectedDate) {
     return (
-      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-800 text-center text-gray-400 text-xs py-2">
-        Click a date to view tasks, attendance &amp; leaves
+      <div className="mt-4 p-4 rounded-xl border border-dashed border-gray-100 dark:border-zinc-800 text-center">
+        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Select date</p>
       </div>
     );
   }
 
   const fmt = new Date(selectedDate + "T00:00:00").toLocaleDateString("en-US", {
-    weekday: "short", month: "short", day: "numeric",
+    month: "short", day: "numeric",
   });
 
   return (
-    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-800 space-y-3">
-      <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-        📅 {fmt}
-      </p>
+    <div className="mt-6 space-y-4">
+      <div className="flex items-center justify-between">
+         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Activity / {fmt}</p>
+         {loadingDay && <div className="w-3 h-3 border border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />}
+      </div>
 
-      {loadingDay ? (
-        <div className="flex justify-center py-3">
-          <div className="w-5 h-5 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
-        </div>
-      ) : !dayData ? (
-        <p className="text-xs text-gray-400 text-center py-2">No data</p>
-      ) : (
-        <>
-          {/* Tasks */}
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-wider text-blue-500 mb-1">
-              📋 Tasks ({dayData.tasks.length})
+      {!loadingDay && dayData && (
+        <div className="space-y-3">
+          <div className="p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100/50 dark:border-blue-900/30">
+            <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+               Tasks ({dayData.tasks.length})
             </p>
             {dayData.tasks.length === 0 ? (
-              <p className="text-xs text-gray-400">No tasks due</p>
+               <p className="text-[10px] text-gray-400 pl-3">No deadlines</p>
             ) : (
-              <div className="space-y-1">
-                {dayData.tasks.slice(0, 4).map((t: any) => (
-                  <div key={t._id} className="flex items-center justify-between text-xs bg-blue-50 dark:bg-blue-900/20 rounded-lg px-2 py-1">
-                    <span className="truncate text-gray-700 dark:text-gray-300 max-w-[120px]">{t.title}</span>
+              <div className="space-y-1.5 pl-3 border-l-2 border-blue-100 dark:border-blue-900">
+                {dayData.tasks?.map((t: any, idx: number) => (
+                  <div key={t._id || idx} className="flex justify-between items-center gap-1">
+                    <span className="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">{t.title}</span>
                     <PriorityBadge priority={t.priority} />
                   </div>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Attendance */}
-          {dayData.attendance.length > 0 && (
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-500 mb-1">
-                ✅ Attendance ({dayData.attendance.length})
-              </p>
-              {dayData.attendance.slice(0, 3).map((a: any, i: number) => (
-                <div key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 mb-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                  {a.user?.name ?? "—"} · {a.status ?? "present"}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Leaves */}
-          {dayData.leaves.length > 0 && (
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-wider text-amber-500 mb-1">
-                🌴 Leaves ({dayData.leaves.length})
-              </p>
-              {dayData.leaves.slice(0, 3).map((l: any, i: number) => (
-                <div key={i} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 mb-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                  {l.user?.name ?? "—"} · {l.leaveType ?? l.type ?? "leave"}
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+          <div className="grid grid-cols-2 gap-2">
+             <div className="p-2 bg-emerald-50/50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100/50 dark:border-emerald-900/30">
+                <p className="text-[8px] font-black text-emerald-600 uppercase tracking-tighter">Attnd</p>
+                <p className="text-sm font-black text-emerald-700 dark:text-emerald-400">{dayData.attendance.length}</p>
+             </div>
+             <div className="p-2 bg-amber-50/50 dark:bg-amber-900/10 rounded-xl border border-amber-100/50 dark:border-amber-900/30">
+                <p className="text-[8px] font-black text-amber-600 uppercase tracking-tighter">Absnt</p>
+                <p className="text-sm font-black text-amber-700 dark:text-amber-400">{dayData.leaves.length}</p>
+             </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -232,13 +207,11 @@ export default function OverviewPage() {
   const [selectedDate, setSelectedDate]   = useState<string | null>(null);
   const [dayData, setDayData]             = useState<CalendarDayData | null>(null);
   const [loadingDay, setLoadingDay]       = useState(false);
-  const tags = ["Design","Backend","Frontend","Testing","DevOps","Marketing","Finance","Research"];
 
   const fetchOverview = useCallback(async () => {
     setLoading(true);
     try {
-      const res: any = await api.get("/dashboard/overview");
-      console.log("[Overview] API response:", res?.data);
+      const res: any = await overviewApi.get();
       setData(res.data ?? res);
     } catch (err) {
       console.error("[Overview] fetch failed:", err);
@@ -249,244 +222,121 @@ export default function OverviewPage() {
 
   useEffect(() => { fetchOverview(); }, [fetchOverview]);
 
-  // ── Calendar date click ───────────────────────────────────────────────────
   const handleDateClick = useCallback(async (dateStr: string) => {
-    console.log("[Calendar] Date clicked:", dateStr);
     setSelectedDate(dateStr);
-    setDayData(null);
     setLoadingDay(true);
     try {
       const res: any = await calendarApi.getDayData(dateStr);
-      console.log("[Calendar] Day data:", res?.data ?? res);
       setDayData(res?.data ?? res ?? null);
     } catch (err) {
-      console.error("[Calendar] getDayData failed:", err);
-      setDayData({ date: dateStr, tasks: [], attendance: [], leaves: [] });
+      setDayData(null);
     } finally {
       setLoadingDay(false);
     }
   }, []);
 
-  // Normalise project list (handles both 'name' and 'projectTitle' from API)
-  const projectList: any[] = data?.projectProgress ?? [];
-  const filteredProjects = projectList.filter((p: any) => {
-    const title = (p.name || p.projectTitle || "").toLowerCase();
-    return title.includes(search.toLowerCase());
-  });
-
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500/20 border-t-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="max-w-full mx-auto space-y-6 pb-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            👋 Workspace Overview
-          </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-            Your team&apos;s workspace at a glance
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Workspace Overview</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Real-time organizational summary</p>
         </div>
         <div className="flex items-center gap-3">
           <button
-            id="overview-refresh-btn"
             onClick={fetchOverview}
-            className="text-xs px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition font-semibold shadow-md"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition shadow-lg shadow-blue-500/20 active:scale-95"
           >
             Refresh
           </button>
-          <div className="relative">
-            <input
-              id="overview-search"
-              type="text"
-              placeholder="Search projects…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-            />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">🔍</span>
-          </div>
         </div>
       </div>
 
-      {/* Top Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      {/* 4 Top Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Active Projects", value: data?.stats?.activeProjects ?? 0, icon: "📊", color: "text-blue-600", bg: "bg-blue-50 dark:bg-blue-900/20" },
-          { label: "Pending Tasks",   value: data?.stats?.pendingTasks   ?? 0, icon: "🔥", color: "text-amber-600", bg: "bg-amber-50 dark:bg-amber-900/20" },
-          { label: "Team Size",       value: data?.stats?.teamSize       ?? 0, icon: "👥", color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-900/20" },
-          { label: "Daily Hours",     value: `${data?.stats?.dailyHours ?? 8}h`, icon: "⏱️", color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
+          { label: "Active Projects", value: data?.stats?.activeProjects ?? 0, icon: "📊", cls: "text-blue-600" },
+          { label: "Pending Tasks",   value: data?.stats?.pendingTasks   ?? 0, icon: "🎯", cls: "text-amber-600" },
+          { label: "Team Strength",   value: data?.stats?.teamSize       ?? 0, icon: "👥", cls: "text-violet-600" },
+          { label: "Daily Hours",    value: `${data?.stats?.dailyHours ?? 0}h`, icon: "⏱️", cls: "text-emerald-600" },
         ].map((stat, i) => (
-          <div key={i} className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm hover:shadow-md transition">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center text-lg`}>
-                {stat.icon}
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Live</span>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{stat.label}</p>
-            <p className={`text-3xl font-bold mt-1 ${stat.color}`}>{stat.value}</p>
+          <div key={stat.label || i} className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm transition-transform hover:-translate-y-0.5">
+            <div className="text-2xl mb-2">{stat.icon}</div>
+            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{stat.label}</p>
+            <p className={`text-2xl font-bold mt-1 ${stat.cls}`}>{stat.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Row 1: Calendar + Urgent Tasks + Team */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-
-        {/* Calendar with day-click */}
+      {/* 3 Column Grid Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Column 1: Calendar */}
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <h3 className="font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-            📅 Calendar
-          </h3>
-          <MiniCalendar onDateClick={handleDateClick} selectedDate={selectedDate} />
-          <CalendarDayPanel
-            selectedDate={selectedDate}
-            dayData={dayData}
-            loadingDay={loadingDay}
-          />
+           <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-gray-900 dark:text-white">System Calendar</h3>
+              <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full uppercase tracking-tighter">Live Monitor</span>
+           </div>
+           <MiniCalendar onDateClick={handleDateClick} selectedDate={selectedDate} />
+           <CalendarDayPanel selectedDate={selectedDate} dayData={dayData} loadingDay={loadingDay} />
         </div>
 
-        {/* Urgent Tasks */}
-        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <h3 className="font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-            🔥 Urgent Tasks
-          </h3>
-          <div className="space-y-3">
-            {!data?.urgentTasks?.length ? (
-              <div className="text-center py-6 text-gray-400">
-                <span className="text-3xl block mb-2">🎉</span>
-                <p className="text-sm">No urgent tasks right now</p>
-              </div>
-            ) : data.urgentTasks.map((task: any) => {
-              const due = dueDateLabel(task.dueDate);
-              return (
-                <div
-                  key={task._id}
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl hover:bg-gray-100 dark:hover:bg-zinc-700 transition"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{task.title}</p>
-                    {due && <p className={`text-xs mt-0.5 ${due.cls}`}>{due.text}</p>}
-                  </div>
-                  <PriorityBadge priority={task.priority} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Team Directory */}
-        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <h3 className="font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-            👥 Team Directory
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            {!data?.users?.length ? (
-              <div className="col-span-2 text-center py-6 text-gray-400">
-                <span className="text-3xl block mb-2">👥</span>
-                <p className="text-sm">No team members found</p>
-              </div>
-            ) : data.users.slice(0, 6).map((member: any) => (
-              <div
-                key={member._id}
-                className="flex flex-col items-center text-center p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-zinc-800 transition"
-              >
-                <Avatar name={member.name || "?"} size={10} />
-                <p className="text-sm font-medium mt-2 text-gray-800 dark:text-gray-200">{member.name}</p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 uppercase font-bold tracking-widest">
-                  {member.role?.name || member.role || "—"}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Row 2: Project Directory + Latest Comments */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-
-        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-          <h3 className="font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-            📁 Project Directory
-          </h3>
-          <div className="space-y-4">
-            {filteredProjects.length === 0 ? (
-              <p className="text-sm text-gray-400 dark:text-gray-500 text-center py-4">
-                No projects found.
-              </p>
-            ) : filteredProjects.map((proj: any) => {
-              const title = proj.name || proj.projectTitle || "Untitled";
-              const pct   = proj.completionPercentage ?? 0;
-              return (
-                <div key={proj._id} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{title}</span>
-                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">{pct}%</span>
-                  </div>
-                  <div className="w-full bg-gray-100 dark:bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-500"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          {/* Latest Comments */}
-          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-            <h3 className="font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-              💬 Latest Comments
-            </h3>
-            {!data?.comments?.length ? (
-              <div className="text-center py-6 text-gray-400">
-                <span className="text-3xl block mb-2">💬</span>
-                <p className="text-sm">No recent comments</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {data.comments.map((c: any, i: number) => (
-                  <div key={i} className="flex gap-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl">
-                    <Avatar name={c.user || "?"} size={8} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] text-gray-400 dark:text-gray-500 mb-0.5 uppercase font-black tracking-tighter">
-                        {c.user}
-                      </p>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 truncate">{c.text}</p>
+        {/* Column 2: Urgent Tasks */}
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm flex flex-col">
+           <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-gray-900 dark:text-white">Urgent Deployment</h3>
+              <span className="text-[9px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/30 px-2 py-1 rounded-full uppercase tracking-tighter">High Alpha</span>
+           </div>
+           <div className="space-y-3 flex-1 overflow-y-auto max-h-[460px] pr-1 scrollbar-hide">
+              {!data?.urgentTasks?.length ? (
+                <div className="text-center py-12 opacity-30 italic grayscale text-xs font-bold uppercase tracking-widest">No Critical Risks</div>
+              ) : data.urgentTasks?.map((task: any, idx: number) => {
+                const due = dueDateLabel(task.dueDate);
+                return (
+                  <div key={task._id || idx} className="p-4 bg-gray-50 dark:bg-zinc-800/40 rounded-xl border border-transparent hover:border-red-500/20 transition-all group">
+                    <div className="flex justify-between items-start mb-2">
+                       <p className="text-[13px] font-bold text-gray-800 dark:text-white group-hover:text-red-500 transition-colors uppercase tracking-tight leading-tight">{task.title}</p>
+                       <PriorityBadge priority={task.priority} />
+                    </div>
+                    <div className="flex items-center gap-3">
+                       <span className="text-[9px] text-gray-400 font-bold uppercase">{task.project || "General Ops"}</span>
+                       {due && <span className={`text-[9px] font-black uppercase tracking-tighter ${due.cls}`}>{due.text}</span>}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Tag Categories */}
-          <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm">
-            <h3 className="font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
-              🏷️ Tag Categories
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-50 to-violet-50 dark:from-blue-900/20 dark:to-violet-900/20 text-blue-700 dark:text-blue-300 text-xs font-medium border border-blue-100 dark:border-blue-800 cursor-pointer hover:shadow-sm transition"
-                >
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          </div>
+                );
+              })}
+           </div>
         </div>
+
+        {/* Column 3: Team Directory */}
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-gray-100 dark:border-zinc-800 shadow-sm flex flex-col">
+           <div className="flex items-center justify-between mb-8">
+              <h3 className="font-bold text-gray-900 dark:text-white">Operational Units</h3>
+              <span className="text-[9px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded-full uppercase tracking-tighter">Online</span>
+           </div>
+           <div className="grid grid-cols-2 gap-3 flex-1">
+             {!data?.teamMembers?.length ? (
+               <p className="col-span-2 text-center text-xs text-gray-400 font-bold uppercase py-6 italic opacity-40">No units deployed</p>
+             ) : data.teamMembers?.slice(0, 10).map((member: any, idx: number) => (
+               <div key={member._id || idx} className="p-4 bg-gray-50/50 dark:bg-zinc-800/20 rounded-2xl flex flex-col items-center hover:bg-white dark:hover:bg-zinc-950 transition-all border border-transparent hover:border-indigo-500/10 cursor-pointer shadow-sm">
+                 <Avatar name={member.name || "?"} size={9} />
+                 <p className="text-[11px] font-bold mt-2.5 text-gray-900 dark:text-white text-center uppercase tracking-tight truncate w-full">{member.name}</p>
+                 <p className="text-[8px] text-gray-400 font-bold uppercase mt-0.5">{member.role?.name || member.role || "Specialist"}</p>
+               </div>
+             ))}
+           </div>
+           <button className="w-full mt-6 py-2 bg-gray-50 dark:bg-zinc-800 hover:bg-gray-100 text-[10px] font-bold uppercase text-gray-500 rounded-xl transition-all">Audit Directory</button>
+        </div>
+
       </div>
     </div>
   );

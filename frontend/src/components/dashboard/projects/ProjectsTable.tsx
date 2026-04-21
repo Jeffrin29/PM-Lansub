@@ -104,8 +104,8 @@ export default function ProjectsTable({ projects, onView, onEdit, onDelete }: Pr
               </td>
 
               {/* Owner */}
-              <td className="py-3.5 px-4">
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              <td className="py-3.5 px-4 max-w-[120px]">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate block">
                   {ownerName(p.owner)}
                 </span>
               </td>
