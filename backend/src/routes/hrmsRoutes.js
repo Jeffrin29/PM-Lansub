@@ -13,6 +13,7 @@ router.use(authenticate, organizationIsolation);
 // ─── Stats ───────────────────────────────────────────────────────────────────
 router.get('/stats', checkRole('admin', 'hr', 'manager', 'employee'), hrms.getHrmsStats);
 router.get('/dashboard', checkRole('admin', 'hr', 'manager', 'employee'), hrms.getHrmsStats);
+router.get('/', checkRole('admin', 'hr', 'manager', 'employee'), hrms.getHrmsStats);
 
 // ─── Employees ────────────────────────────────────────────────────────────────
 router.get('/employees', checkRole('admin', 'hr', 'manager', 'employee'), hrms.getEmployees);

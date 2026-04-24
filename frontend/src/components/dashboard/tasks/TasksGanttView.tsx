@@ -120,7 +120,7 @@ export default function TasksGanttView({
   }
 
   return (
-    <div className="flex flex-col h-[750px] w-full max-w-full bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-[2.5rem] shadow-2xl" style={{ overflow: 'hidden', minWidth: 0 }}>
+    <div className="flex flex-col h-[750px] w-full max-w-full overflow-hidden bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 rounded-[2.5rem] shadow-2xl">
       {/* ── Fixed Header ── */}
       <div className="flex-shrink-0 flex flex-col md:flex-row md:items-center justify-between px-10 py-6 border-b border-gray-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 z-50">
         <div className="mb-4 md:mb-0">
@@ -161,7 +161,7 @@ export default function TasksGanttView({
 
       {/* ── Scrollable Body ── */}
       <div className="flex-1 overflow-x-auto w-full">
-        <div className="bg-white dark:bg-zinc-950" style={{ overflow: 'hidden', minWidth: 280 + (daysInMonth * DAY_WIDTH), maxWidth: '100%' }}>
+        <div className="bg-white dark:bg-zinc-950" style={{ minWidth: 280 + (daysInMonth * DAY_WIDTH) }}>
           <div className="flex flex-col min-h-full">
 
           {/* Calendar Day Header (Sticky) */}
