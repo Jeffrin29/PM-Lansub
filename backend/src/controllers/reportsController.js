@@ -9,18 +9,20 @@ exports.getReports = async (req, res) => {
     const { userId, role } = req.user;
     const orgFilter = req.orgFilter || { organizationId: req.user.organizationId };
 
-    // Role-scoped project filter
+    // ── Role-based project filter (mirrors projectController.getProjects) ───────
+    // admin / hr → all org projects; employee / manager → owned + team only
     let projectFilter = { ...orgFilter };
-    if (role === 'project_manager' || role === 'manager') {
+    if (role === 'employee' || role === 'project_manager' || role === 'manager') {
       projectFilter.$or = [
         { owner: userId },
         { 'teamMembers.userId': userId },
       ];
     }
+    // admin / hr: orgFilter only
 
     const projects = await Project.find(projectFilter);
     const projectIds = projects.map(p => p._id);
-    
+
     // Fetch all tasks for these projects within the same organization
     const tasks = await Task.find({ ...orgFilter, projectId: { $in: projectIds } });
 
@@ -31,7 +33,7 @@ exports.getReports = async (req, res) => {
 
       const total = projectTasks.length;
 
-      // Status Normalization Check
+      // Status Normalization
       const isComplete = (t) => ['complete', 'completed'].includes(String(t.status).toLowerCase());
       const isInProgress = (t) => ['in_progress', 'in progress', 'active'].includes(String(t.status).toLowerCase());
 

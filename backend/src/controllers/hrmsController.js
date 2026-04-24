@@ -16,24 +16,33 @@ const { enforceAutoLogout } = require('../utils/attendanceHelper');
 
 exports.getHrmsStats = async (req, res) => {
   try {
-    const [totalEmp, activeEmp, deptCount, pendingLeaves] = await Promise.all([
-      HrEmployee.countDocuments({ ...req.orgFilter }),
-      HrEmployee.countDocuments({ ...req.orgFilter, status: 'active' }),
-      Department.countDocuments({ ...req.orgFilter }),
-      Leave.countDocuments({ ...req.orgFilter, status: 'Pending' }),
-    ]);
+    const userId = req.user.id;
+    const organizationId = req.user.organizationId;
     
-    const stats = {
-      totalEmployees: totalEmp,
-      activeEmployees: activeEmp,
-      departmentsCount: deptCount,
-      pendingLeaves,
-    };
+    // Fetch data properly with org isolation
+    const employees = await User.find({ organizationId }).lean();
+    const activeEmployees = employees.filter(e => e.status?.toUpperCase() === "ACTIVE");
+    const departments = await Department.find({ organizationId }).lean();
     
-    console.log("[HRMS] Stats fetched:", stats);
-    return successResponse(res, stats, 'HRMS stats fetched.');
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const attendance = await Attendance.find({
+      organizationId,
+      date: { $gte: todayStart }
+    }).lean();
+
+    // RETURN CLEAN RESPONSE
+    return res.json({
+      totalWorkforce: employees.length,
+      activeDeployment: activeEmployees.length,
+      departmentsCount: departments.length,
+      attendanceToday: attendance.length,
+      employees
+    });
   } catch (err) {
-    return errorResponse(res, err.message, 500);
+    console.error("[HRMS STATS ERROR]:", err);
+    return res.status(500).json({ message: err.message });
   }
 };
 

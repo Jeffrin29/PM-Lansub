@@ -99,7 +99,7 @@ export default function ProjectDetailModal({ project, onClose, onEdit, onDelete 
 
             <div>
               <p className="text-xs text-gray-400 mb-2">Completion</p>
-              <ProgressBar value={project.completionPercentage ?? 0} />
+              <ProgressBar value={project.completion ?? 0} />
             </div>
 
             <div>
