@@ -331,3 +331,33 @@ SyntaxError: Unexpected token 'const'
     at Server.listen (node:net:2067:7)
     at startServer (C:\PM-Lan\backend\src\server.js:140:12)
     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+[2026-04-24 10:25:59] [31merror[39m: C:\PM-Lan\backend\src\controllers\dashboardController.js:122
+  } catch (err) {
+  ^
+
+SyntaxError: Unexpected token '}'
+    at wrapSafe (node:internal/modules/cjs/loader:1464:18)
+    at Module._compile (node:internal/modules/cjs/loader:1495:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (C:\PM-Lan\backend\src\routes\dashboardRoutes.js:4:14)
+    at Module._compile (node:internal/modules/cjs/loader:1521:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+[2026-04-24 10:26:18] [31merror[39m: C:\PM-Lan\backend\src\controllers\dashboardController.js:122
+  } catch (err) {
+  ^
+
+SyntaxError: Unexpected token '}'
+    at wrapSafe (node:internal/modules/cjs/loader:1464:18)
+    at Module._compile (node:internal/modules/cjs/loader:1495:20)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18)
+    at Object.<anonymous> (C:\PM-Lan\backend\src\routes\dashboardRoutes.js:4:14)
+    at Module._compile (node:internal/modules/cjs/loader:1521:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
