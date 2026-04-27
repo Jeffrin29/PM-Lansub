@@ -113,10 +113,11 @@ const getProjectProgress = async (req, res) => {
     if (role === 'employee') filter['teamMembers.userId'] = userId;
     else if (role === 'project_manager' || role === 'manager') filter.owner = userId;
 
-    const projects = await Project.find(filter).select('name completion status').limit(10).lean();
+    const projects = await Project.find(filter).select('name projectTitle title completion status').limit(10).lean();
     return successResponse(res, projects.map(p => ({
-      name: p.name,
-      progress: p.completion || 0,
+      id: p._id,
+      projectName: p.name || p.projectTitle || p.title || "Unnamed Project",
+      completion: p.completion || 0,
       status: p.status
     })));
   } catch (err) {
@@ -240,7 +241,7 @@ const getUnifiedDashboard = async (req, res) => {
       Task.find(taskFilter).select('status dueDate assignedTo isBlocked').populate('assignedTo', 'name').lean(),
       Task.countDocuments({ ...taskFilter, status: { $nin: ['complete', 'completed'] }, dueDate: { $lt: now } }),
       Activity.find({ ...orgFilter }).sort({ createdAt: -1 }).limit(10).populate('userId', 'name').lean(),
-      Project.find(projectFilter).select('name completion status').limit(8).lean(),
+      Project.find(projectFilter).select('name projectTitle title completion status').limit(8).lean(),
       Project.find(projectFilter).select('budget createdAt').lean()
     ]);
 
@@ -286,7 +287,12 @@ const getUnifiedDashboard = async (req, res) => {
         { name: 'Completed', value: completedTasks, color: '#10b981' },
         { name: 'Blocked', value: tasksArr.filter(t => t.isBlocked).length, color: '#ef4444' },
       ],
-      projectProgress: projectList.map(p => ({ name: p.name, progress: p.completion || 0, status: p.status })),
+      projectProgress: projectList.map(p => ({ 
+        id: p._id,
+        projectName: p.name || p.projectTitle || p.title || "Unnamed Project", 
+        completion: p.completion || 0, 
+        status: p.status 
+      })),
       recentActivity: recentActivities.map(a => ({ _id: a._id, action: a.action, metadata: a.metadata, createdAt: a.createdAt, userId: { name: a.userId?.name || 'System' } })),
       workload: Object.values(workloadMap).slice(0, 10),
       costAnalysis
