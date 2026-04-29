@@ -5,10 +5,8 @@ const registerValidation = [
   body('name').trim().notEmpty().withMessage('Name is required').isLength({ min: 2, max: 100 }),
   body('email').trim().isEmail().withMessage('Valid email is required').normalizeEmail(),
   body('password')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
-    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
-    .matches(/[0-9]/).withMessage('Password must contain at least one number'),
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters'),
   body('organizationName').optional().trim().isLength({ min: 2, max: 100 }),
 ];
 

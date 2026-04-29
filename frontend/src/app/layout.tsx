@@ -2,7 +2,10 @@ import "./globals.css";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "../components/dashboard/theme-provider";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ 
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 export const metadata = {
   title: "Project Intelligence",
@@ -16,7 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
 
-      <body className={`${inter.className} bg-[#0b0f19] text-white font-sans`}>
+      <body className={`${inter.variable} ${inter.className} bg-[#f1f5f9] text-gray-900 dark:bg-[#0b0f19] dark:text-white font-sans`}>
 
         <ThemeProvider
           attribute="class"

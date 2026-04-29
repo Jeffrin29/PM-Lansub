@@ -4,7 +4,19 @@
 
 /* Global font consistency */
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-inter), 'Inter', sans-serif;
+}
+
+/* Force global font inheritance throughout HRMS subtree */
+#hrms-page-root,
+#hrms-page-root *,
+#hrms-page-root input,
+#hrms-page-root select,
+#hrms-page-root button,
+#hrms-page-root table,
+#hrms-page-root th,
+#hrms-page-root td {
+  font-family: var(--font-inter), 'Inter', sans-serif !important;
 }
 
 /* Hide scrollbar but allow scroll */
@@ -15,3 +27,37 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ── Light Theme Global Overrides ─────────────────────────────────────────── */
+html:not(.dark) body {
+  background-color: #f1f5f9 !important;
+  color: #0f172a;
+}
+
+/* Light theme scrollbar */
+html:not(.dark) ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+html:not(.dark) ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Light theme card hover lift */
+html:not(.dark) .kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+}
+
+/* Light theme KPI card transitions */
+html:not(.dark) .kpi-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+

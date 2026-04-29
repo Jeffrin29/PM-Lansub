@@ -15,12 +15,12 @@ import {
   FaBell,
   FaUserShield,
   FaUsers,
-  FaRobot
+  FaRobot,
+  FaTimes,
 } from "react-icons/fa";
 
 import { FiLogOut } from "react-icons/fi";
 
-// roles that can see each nav item (undefined = all roles can see it)
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", Icon: FaChartPie },
   { href: "/dashboard/overview", label: "Overview", Icon: FaStream },
@@ -32,7 +32,6 @@ const NAV_ITEMS = [
   { href: "/dashboard/discussions", label: "Discussions", Icon: FaComments },
   { href: "/dashboard/notifications", label: "Notifications", Icon: FaBell },
   { href: "/dashboard/profile", label: "Profile", Icon: FaUserShield },
-  // ── Restricted pages ───────────────────────────────────────────────────────
   {
     href: "/dashboard/reports",
     label: "Reports",
@@ -58,27 +57,26 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
-
   const [role, setRole] = useState<string>("employee");
 
   useEffect(() => {
     try {
       const userRaw = localStorage.getItem("user");
       const user = userRaw ? JSON.parse(userRaw) : null;
-      
-      let rawRole = 'employee';
+
+      let rawRole = "employee";
       if (user?.roleId?.name) {
         rawRole = user.roleId.name;
       } else if (user?.role?.name) {
         rawRole = user.role.name;
       } else if (user?.role) {
-        rawRole = typeof user.role === 'string' ? user.role : (user.role.name || 'employee');
+        rawRole = typeof user.role === "string" ? user.role : (user.role.name || "employee");
       }
 
-      const normalizedRole = rawRole.toLowerCase().trim().replace(/\s+/g, '_');
+      const normalizedRole = rawRole.toLowerCase().trim().replace(/\s+/g, "_");
       console.log("[SIDEBAR] Normalized User Role:", normalizedRole);
       setRole(normalizedRole);
     } catch (err) {
@@ -93,29 +91,48 @@ export default function Sidebar() {
     router.push("/auth");
   }
 
-  // Filter nav items based on the current user's role
   const visibleItems = NAV_ITEMS.filter((item) => {
-    if (!item.allowedRoles) return true;               // no restriction → visible to all
-    return item.allowedRoles.includes(role);           // role must be in allowedRoles
+    if (!item.allowedRoles) return true;
+    return item.allowedRoles.includes(role);
   });
 
   return (
-    <div className="w-64 h-screen flex flex-col bg-white dark:bg-black border-r border-gray-200 dark:border-zinc-800 text-black dark:text-white p-6">
-      <h1 className="text-xl font-semibold mb-10">LANSUB</h1>
+    /*
+     * Light mode:  dark navy (#0f172a) — creates strong contrast against white content
+     * Dark mode:   pitch black (#000)  — unchanged from original
+     */
+    <div className="w-64 h-screen flex flex-col bg-[#0f172a] dark:bg-black border-r border-white/10 dark:border-zinc-800 text-white p-5">
 
-      <nav className="space-y-1.5 flex-1 overflow-y-auto scrollbar-hide">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-xl font-bold tracking-tight text-white">LANSUB</h1>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition"
+            aria-label="Close sidebar"
+          >
+            <FaTimes size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* Nav */}
+      <nav className="space-y-1 flex-1 overflow-y-auto scrollbar-hide">
         {visibleItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 ${isActive
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-200 dark:shadow-none"
-                  : "text-gray-500 dark:text-zinc-400 hover:bg-gray-50 dark:hover:bg-zinc-900 hover:text-gray-900 dark:hover:text-white"
-                }`}
+              onClick={() => onClose?.()}
+              className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 ${
+                isActive
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50 dark:shadow-none"
+                  : "text-slate-400 dark:text-zinc-400 hover:bg-white/10 dark:hover:bg-zinc-900 hover:text-white"
+              }`}
             >
-              <item.Icon size={16} />
+              <item.Icon size={15} />
               {item.label}
             </Link>
           );
@@ -123,17 +140,16 @@ export default function Sidebar() {
       </nav>
 
       {/* Role badge */}
-      <div className="mb-4 px-4 py-1.5 text-xs font-semibold rounded-full self-start capitalize
-        bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+      <div className="mb-4 px-4 py-1.5 text-xs font-semibold rounded-full self-start capitalize bg-white/10 dark:bg-blue-900/30 text-slate-300 dark:text-blue-400 border border-white/20 dark:border-blue-800">
         {role}
       </div>
 
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className="flex items-center gap-3 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white transition"
+        className="flex items-center gap-3 text-slate-400 dark:text-gray-400 hover:text-white dark:hover:text-white transition-colors text-sm font-medium min-h-[44px]"
       >
-        <FiLogOut size={18} />
+        <FiLogOut size={16} />
         Logout
       </button>
     </div>

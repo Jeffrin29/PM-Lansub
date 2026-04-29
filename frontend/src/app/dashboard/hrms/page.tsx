@@ -101,7 +101,7 @@ function Badge({ status }: { status: string }) {
     };
 
     return (
-        <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider border ${mapping[s] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
+        <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wide border ${mapping[s] || 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'}`}>
             {status}
         </span>
     );
@@ -117,29 +117,29 @@ function EmployeeModal({ onClose, onSave, employee }: { onClose: () => void; onS
             <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-gray-100 dark:border-zinc-800 overflow-hidden motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in duration-300">
                 <div className="p-10 border-b border-gray-100 dark:border-zinc-800 flex items-center justify-between bg-gradient-to-br from-blue-600 to-violet-700 text-white">
                     <div>
-                        <h2 className="text-2xl font-semibold tracking-tight">{employee ? 'Update Identity' : 'Commission Employee'}</h2>
-                        <p className="text-xs uppercase font-semibold tracking-wider opacity-70 mt-1">Workforce Intelligence Unit</p>
+                        <h2 className="text-xl font-bold tracking-tight">{employee ? 'Update Identity' : 'Commission Employee'}</h2>
+                        <p className="text-[10px] uppercase font-bold tracking-widest opacity-70 mt-1">Workforce Intelligence Unit</p>
                     </div>
                     <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">✕</button>
                 </div>
                 <form className="p-10 space-y-6" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await onSave(form); onClose(); } catch(err: any) { alert(err.message); } finally { setSaving(false); } }}>
                     <div className="space-y-4">
                         <div className="group">
-                            <label className="text-xs font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-wider mb-2 block">Full Name</label>
+                            <label className="text-[11px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2 block">Full Name</label>
                             <input 
                                 placeholder="e.g. John Doe" 
-                                className="w-full h-14 px-5 rounded-2xl border-2 dark:border-zinc-800 dark:bg-black focus:border-blue-500 outline-none transition-all font-medium" 
+                                className="w-full h-14 px-5 rounded-2xl border-2 dark:border-zinc-800 dark:bg-black focus:border-blue-500 outline-none transition-all font-semibold text-[13px]" 
                                 value={form.name} 
                                 onChange={(e) => setForm({ ...form, name: e.target.value })} 
                                 required 
                             />
                         </div>
                         <div className="group">
-                            <label className="text-xs font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-wider mb-2 block">Enterprise Email</label>
+                            <label className="text-[11px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2 block">Enterprise Email</label>
                             <input 
                                 placeholder="name@company.com" 
                                 type="email" 
-                                className="w-full h-14 px-5 rounded-2xl border-2 dark:border-zinc-800 dark:bg-black focus:border-blue-500 outline-none transition-all font-medium" 
+                                className="w-full h-14 px-5 rounded-2xl border-2 dark:border-zinc-800 dark:bg-black focus:border-blue-500 outline-none transition-all font-semibold text-[13px]" 
                                 value={form.email} 
                                 onChange={(e) => setForm({ ...form, email: e.target.value })} 
                                 required 
@@ -147,9 +147,9 @@ function EmployeeModal({ onClose, onSave, employee }: { onClose: () => void; onS
                         </div>
                         <div className="grid grid-cols-1 gap-4">
                             <div className="group">
-                                <label className="text-xs font-semibold text-gray-400 dark:text-zinc-500 uppercase tracking-wider mb-2 block">Strategic Role</label>
+                                <label className="text-[11px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-2 block">Strategic Role</label>
                                 <select 
-                                    className="w-full h-14 px-5 rounded-2xl border-2 dark:border-zinc-800 dark:bg-black focus:border-blue-500 outline-none transition-all font-medium appearance-none bg-none" 
+                                    className="w-full h-14 px-5 rounded-2xl border-2 dark:border-zinc-800 dark:bg-black focus:border-blue-500 outline-none transition-all font-semibold text-[13px] appearance-none bg-none" 
                                     value={form.role} 
                                     onChange={(e) => setForm({ ...form, role: e.target.value })}
                                 >
@@ -163,8 +163,8 @@ function EmployeeModal({ onClose, onSave, employee }: { onClose: () => void; onS
                     </div>
                     
                     <div className="flex gap-4 pt-6">
-                        <button type="button" onClick={onClose} className="flex-1 h-14 rounded-2xl border-2 font-semibold uppercase text-xs tracking-wider hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all">Cancel</button>
-                        <button type="submit" disabled={saving} className="flex-1 h-14 rounded-2xl bg-blue-600 text-white font-semibold uppercase text-xs tracking-wider shadow-xl shadow-blue-500/20 transition-all hover:-translate-y-1 active:scale-95 disabled:opacity-50">
+                        <button type="button" onClick={onClose} className="flex-1 h-14 rounded-2xl border-2 font-bold uppercase text-[11px] tracking-wider hover:bg-gray-50 dark:hover:bg-zinc-800 transition-all">Cancel</button>
+                        <button type="submit" disabled={saving} className="flex-1 h-14 rounded-2xl bg-blue-600 text-white font-bold uppercase text-[11px] tracking-wider shadow-xl shadow-blue-500/20 transition-all hover:-translate-y-1 active:scale-95 disabled:opacity-50">
                             {saving ? 'Processing...' : employee ? 'Update Record' : 'Create Record'}
                         </button>
                     </div>
@@ -244,7 +244,7 @@ export default function HRMSPage() {
     };
 
     return (
-        <div className="w-full font-sans text-white space-y-10 pb-12 overflow-x-hidden">
+        <div id="hrms-page-root" className="w-full text-gray-900 dark:text-white space-y-10 pb-12 overflow-x-hidden">
             {showModal && (
                 <EmployeeModal 
                     onClose={() => { setShowModal(false); setEditing(null); }} 
@@ -258,13 +258,13 @@ export default function HRMSPage() {
 
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-semibold tracking-tight">Workforce Hub</h1>
-                    <p className="text-gray-400 text-sm mt-2 max-w-md">Orchestrate your team&apos;s lifecycle, handle permissions, and monitor organizational health.</p>
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Workforce Hub</h1>
+                    <p className="text-gray-500 dark:text-zinc-500 font-medium text-sm mt-1 max-w-md">Orchestrate your team&apos;s lifecycle, handle permissions, and monitor organizational health.</p>
                 </div>
                 <button 
                     id="add-employee-btn"
                     onClick={() => { setEditing(null); setShowModal(true); }} 
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl text-xs font-semibold uppercase tracking-wider shadow-2xl shadow-blue-500/20 transition-all hover:-translate-y-1"
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl text-[11px] font-bold uppercase tracking-wider shadow-2xl shadow-blue-500/20 transition-all hover:-translate-y-1"
                 >
                     ＋ Commission Team Member
                 </button>
@@ -277,22 +277,22 @@ export default function HRMSPage() {
                     { label: 'Strategic Units', value: stats?.departmentsCount ?? '0', color: 'text-violet-600', icon: '🏢' },
                     { label: 'Attendance Today', value: stats?.pendingLeaves ?? '0', color: 'text-rose-600', icon: '⏳' },
                 ].map((s) => (
-                    <div key={s.label} className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/50 rounded-3xl p-8 shadow-sm transition-all hover:shadow-xl hover:border-blue-500/20 group">
+                    <div key={s.label} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800/50 rounded-3xl p-8 shadow-sm transition-all hover:shadow-xl hover:border-blue-500/20 group">
                         <div className="flex items-center justify-between mb-4">
                             <span className="text-2xl brightness-110 group-hover:scale-110 transition-transform">{s.icon}</span>
-                            <p className="text-xs tracking-wider text-gray-400 uppercase">{s.label}</p>
+                            <p className="text-[11px] font-semibold text-gray-500 dark:text-zinc-500 uppercase tracking-widest">{s.label}</p>
                         </div>
-                        <h2 className={`text-3xl font-semibold tracking-tight ${s.color}`}>{s.value}</h2>
+                        <h2 className={`text-3xl font-bold ${s.color}`}>{s.value}</h2>
                     </div>
                 ))}
             </div>
 
-            <div className="flex gap-4 border-b border-gray-100 dark:border-zinc-800/50">
+            <div className="flex gap-4 border-b border-gray-200 dark:border-zinc-800/50 overflow-x-auto scrollbar-hide">
                 {(['employees', 'attendance', 'leave', 'departments'] as const).map((t) => (
                     <button 
                         key={t} 
                         onClick={() => setActiveTab(t)} 
-                        className={`px-6 py-4 text-xs font-semibold uppercase tracking-wider transition-all -mb-px border-b-2 ${activeTab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}
+                        className={`px-6 py-4 text-[11px] font-bold uppercase tracking-wider transition-all -mb-px border-b-2 whitespace-nowrap ${activeTab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 dark:text-zinc-500 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     >
                         {t}
                     </button>
@@ -308,7 +308,7 @@ export default function HRMSPage() {
                                 placeholder="Search by name, email or role..." 
                                 value={search} 
                                 onChange={(e) => setSearch(e.target.value)} 
-                                className="flex-1 px-4 py-2 bg-transparent outline-none text-sm font-medium" 
+                                className="flex-1 px-4 py-2 bg-transparent outline-none text-[13px] font-semibold" 
                             />
                             <div className="p-2 bg-gray-50 dark:bg-zinc-800 rounded-xl text-gray-400">🔍</div>
                         </div>
@@ -318,18 +318,18 @@ export default function HRMSPage() {
                                 <table className="w-full text-sm">
                                     <thead className="bg-gray-50/50 dark:bg-zinc-800/30 text-left border-b border-gray-100 dark:border-zinc-800">
                                         <tr>
-                                            <th className="px-8 py-5 text-xs tracking-wider text-gray-400 uppercase">Internal Identity</th>
-                                            <th className="px-8 py-5 text-xs tracking-wider text-gray-400 uppercase">Unit / Dept</th>
-                                            <th className="px-8 py-5 text-xs tracking-wider text-gray-400 uppercase">Operational Role</th>
-                                            <th className="px-8 py-5 text-xs tracking-wider text-gray-400 uppercase">Status</th>
-                                            <th className="px-8 py-5 text-xs tracking-wider text-gray-400 uppercase text-right">Protocol</th>
+                                            <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-zinc-500">Internal Identity</th>
+                                            <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-zinc-500">Unit / Dept</th>
+                                            <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-zinc-500">Operational Role</th>
+                                            <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-zinc-500">Status</th>
+                                            <th className="px-8 py-5 text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-zinc-500 text-right">Protocol</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50 dark:divide-zinc-800/50">
                                         {loading ? (
                                             <tr><td colSpan={5} className="py-20"><div className="flex justify-center"><div className="w-8 h-8 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div></div></td></tr>
                                         ) : data.length === 0 ? (
-                                            <tr><td colSpan={5} className="text-center py-20 text-gray-400 font-medium italic tracking-wide">No personnel found in current sector.</td></tr>
+                                            <tr><td colSpan={5} className="text-center py-20 text-gray-400 dark:text-zinc-500 text-sm font-medium italic">No personnel found in current sector.</td></tr>
                                         ) : data.map((emp, index) => (
                                             <tr key={emp._id || emp.id || index} className="hover:bg-gray-50/50 dark:hover:bg-zinc-800/20 transition-all group">
                                                 <td className="px-8 py-5">
@@ -338,13 +338,13 @@ export default function HRMSPage() {
                                                             {emp?.name?.charAt(0) || "?"}
                                                         </div>
                                                         <div>
-                                                            <p className="font-medium text-gray-900 dark:text-white">{emp?.name || "—"}</p>
-                                                            <p className="text-xs text-gray-400 font-medium group-hover:text-blue-500 transition-colors">{emp?.email || "—"}</p>
+                                                            <p className="text-[13px] font-semibold text-gray-800 dark:text-white">{emp?.name || "—"}</p>
+                                                            <p className="text-[11px] font-medium text-gray-500 dark:text-zinc-500 group-hover:text-blue-500 transition-colors">{emp?.email || "—"}</p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-8 py-5 font-medium text-gray-500 dark:text-zinc-400">{emp?.department?.name || emp?.department || "General"}</td>
-                                                <td className="px-8 py-5"><span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg font-medium text-xs uppercase tracking-wider text-zinc-500">{emp?.role || "—"}</span></td>
+                                                <td className="px-8 py-5 text-[13px] font-semibold text-gray-600 dark:text-zinc-400">{emp?.department?.name || emp?.department || "General"}</td>
+                                                <td className="px-8 py-5"><span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-[11px] font-bold uppercase tracking-wider text-zinc-500">{emp?.role || "—"}</span></td>
                                                 <td className="px-8 py-5"><Badge status={emp?.status || "Inactive"} /></td>
                                                 <td className="px-8 py-5 text-right">
                                                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -367,7 +367,7 @@ export default function HRMSPage() {
                         {!loading && data.length > 0 && (
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                                 <div className="lg:col-span-1 bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/50 rounded-[2rem] p-8 shadow-sm">
-                                    <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-6">Status Distribution</h3>
+                                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-gray-500 dark:text-zinc-500 mb-6">Status Distribution</h3>
                                     <div className="h-[200px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <PieChart>
@@ -407,7 +407,7 @@ export default function HRMSPage() {
                                         ].map(item => (
                                             <div key={item.label} className="flex items-center gap-2">
                                                 <span className={`w-2 h-2 rounded-full ${item.color}`} />
-                                                <span className="text-xs font-medium text-gray-500 uppercase">{item.label}: {item.count}</span>
+                                                <span className="text-[10px] font-bold text-gray-500 dark:text-zinc-500 uppercase tracking-widest">{item.label}: {item.count}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -416,22 +416,22 @@ export default function HRMSPage() {
                                     <div className="flex items-center gap-6">
                                         <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center text-3xl">📊</div>
                                         <div>
-                                            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Active Monitoring</h3>
-                                            <p className="text-sm text-gray-500 mt-1">Real-time attendance logs for the current organizational cycle. Use filters to narrow down personnel.</p>
+                                            <h3 className="text-[13px] font-bold text-gray-800 dark:text-white uppercase tracking-widest">Active Monitoring</h3>
+                                            <p className="text-sm font-medium text-gray-500 dark:text-zinc-500 mt-1">Real-time attendance logs for the current organizational cycle.</p>
                                         </div>
                                     </div>
                                     <div className="mt-8 grid grid-cols-3 gap-4">
                                         <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800">
-                                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Avg Clock-in</p>
-                                            <p className="text-xl font-semibold text-gray-900 dark:text-white">09:12 AM</p>
+                                            <p className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Avg Clock-in</p>
+                                            <p className="text-xl font-bold text-gray-900 dark:text-white">09:12 AM</p>
                                         </div>
                                         <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800">
-                                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">On-Time Rate</p>
-                                            <p className="text-xl font-semibold text-emerald-500">84%</p>
+                                            <p className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1">On-Time Rate</p>
+                                            <p className="text-xl font-bold text-emerald-500">84%</p>
                                         </div>
                                         <div className="p-4 bg-gray-50 dark:bg-zinc-800/50 rounded-2xl border border-gray-100 dark:border-zinc-800">
-                                            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Active Now</p>
-                                            <p className="text-xl font-semibold text-blue-500">{data.filter(a => a.checkIn && !a.checkOut).length}</p>
+                                            <p className="text-[10px] font-bold text-gray-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Active Now</p>
+                                            <p className="text-xl font-bold text-blue-500">{data.filter(a => a.checkIn && !a.checkOut).length}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -440,7 +440,7 @@ export default function HRMSPage() {
 
                         <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/50 rounded-[2rem] overflow-hidden shadow-sm">
                             <table className="w-full text-sm text-left">
-                                <thead className="bg-gray-50/50 dark:bg-zinc-800/30 border-b border-gray-100 dark:border-zinc-800 text-xs uppercase tracking-wider text-gray-400">
+                                <thead className="bg-gray-50/50 dark:bg-zinc-800/30 border-b border-gray-100 dark:border-zinc-800 text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-zinc-500">
                                     <tr>
                                         <th className="px-8 py-5">Personnel</th>
                                         <th className="px-8 py-5">Timestamp</th>
@@ -469,14 +469,14 @@ export default function HRMSPage() {
                                             console.log("[HRMS] TODAY ATTENDANCE:", todayAttendance);
 
                                             if (todayAttendance.length === 0) {
-                                                return <tr><td colSpan={4} className="text-center text-gray-400 py-20 font-medium italic">No attendance recorded for today.</td></tr>;
+                                                return <tr><td colSpan={4} className="text-center text-gray-400 dark:text-zinc-500 text-sm font-medium py-20 italic">No attendance recorded for today.</td></tr>;
                                             }
 
                                             return todayAttendance.map((a: any, index: number) => (
                                                 <tr key={a._id || index} className="hover:bg-gray-50/50 dark:hover:bg-zinc-800/20 transition-all">
                                                     <td className="px-8 py-5">
-                                                        <p className="font-medium text-gray-900 dark:text-white">{a.name}</p>
-                                                        <p className="text-xs text-gray-400 font-medium">{a.email}</p>
+                                                        <p className="text-[13px] font-semibold text-gray-900 dark:text-white">{a.name}</p>
+                                                        <p className="text-[11px] font-medium text-gray-500 dark:text-zinc-500">{a.email}</p>
                                                     </td>
                                                     <td className="px-8 py-5 font-medium">{formatDateOnly(a.dateRecord)}</td>
                                                     <td className="px-8 py-5 font-medium text-gray-500">
@@ -497,27 +497,27 @@ export default function HRMSPage() {
                 {activeTab === 'leave' && (
                     <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/50 rounded-[2rem] overflow-hidden shadow-sm">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-50/50 dark:bg-zinc-800/30 border-b border-gray-100 dark:border-zinc-800 text-xs uppercase tracking-wider text-gray-400">
+                            <thead className="bg-gray-50/50 dark:bg-zinc-800/30 border-b border-gray-100 dark:border-zinc-800 text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-zinc-500">
                                 <tr>
-                                    <th className="px-8 py-5 tracking-wider">Applicant</th>
-                                    <th className="px-8 py-5 tracking-wider">Classification</th>
-                                    <th className="px-8 py-5 tracking-wider">Window</th>
-                                    <th className="px-8 py-5 tracking-wider">Status</th>
-                                    <th className="px-8 py-5 text-right tracking-wider">Authorization</th>
+                                    <th className="px-8 py-5">Applicant</th>
+                                    <th className="px-8 py-5">Classification</th>
+                                    <th className="px-8 py-5">Window</th>
+                                    <th className="px-8 py-5">Status</th>
+                                    <th className="px-8 py-5 text-right">Authorization</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 dark:divide-zinc-800/50">
                                 {data.map((l: any, index: number) => (
                                     <tr key={l._id || l.id || index} className="hover:bg-gray-50/50 dark:hover:bg-zinc-800/20 transition-all">
-                                        <td className="px-8 py-5 font-medium text-gray-900 dark:text-white">{l.user?.name || "—"}</td>
-                                        <td className="px-8 py-5"><span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg font-medium text-xs uppercase tracking-wider">{l.leaveType}</span></td>
-                                        <td className="px-8 py-5 font-medium text-xs">{formatDateOnly(l.startDate)} - {formatDateOnly(l.endDate)}</td>
+                                        <td className="px-8 py-5 text-[13px] font-semibold text-gray-900 dark:text-white">{l.user?.name || "—"}</td>
+                                        <td className="px-8 py-5"><span className="px-3 py-1 bg-gray-100 dark:bg-zinc-800 rounded-lg text-[11px] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-400">{l.leaveType}</span></td>
+                                        <td className="px-8 py-5 text-[13px] font-semibold">{formatDateOnly(l.startDate)} - {formatDateOnly(l.endDate)}</td>
                                         <td className="px-8 py-5"><Badge status={l.status} /></td>
                                         <td className="px-8 py-5 text-right">
                                             {l.status?.toLowerCase() === 'pending' && (
                                                 <div className="flex justify-end gap-3">
-                                                    <button onClick={() => handleLeaveAction(l._id, 'Approved')} className="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all">Authorize</button>
-                                                    <button onClick={() => handleLeaveAction(l._id, 'Rejected')} className="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all">Decline</button>
+                                                    <button onClick={() => handleLeaveAction(l._id, 'Approved')} className="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-xl text-[11px] font-bold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all">Authorize</button>
+                                                    <button onClick={() => handleLeaveAction(l._id, 'Rejected')} className="px-4 py-2 bg-rose-500/10 text-rose-500 rounded-xl text-[11px] font-bold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all">Decline</button>
                                                 </div>
                                             )}
                                         </td>
@@ -533,14 +533,14 @@ export default function HRMSPage() {
                         {data.map((dept: Department) => (
                             <div key={dept._id} className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-zinc-800/50 rounded-[2rem] p-8 shadow-sm group hover:border-blue-500/20 transition-all">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-semibold text-base text-gray-900 dark:text-white">{dept.name || "—"}</h3>
-                                    <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center font-semibold">
+                                    <h3 className="text-[13px] font-bold text-gray-800 dark:text-white uppercase tracking-widest">{dept.name || "—"}</h3>
+                                    <div className="w-10 h-10 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center font-bold">
                                         {dept?.name?.charAt(0) || "?"}
                                     </div>
                                 </div>
-                                <p className="text-sm text-gray-400 dark:text-zinc-500 font-medium line-clamp-2">{dept.description || 'No operational brief provided.'}</p>
-                                <div className="mt-8 pt-6 border-t border-gray-50 dark:border-zinc-800/50 flex justify-end">
-                                    <button onClick={async () => { if (confirm('Disband unit?')) { await hrmsApi.deleteDepartment(dept._id); fetchData(); } }} className="text-xs font-semibold uppercase tracking-wider text-rose-500 hover:text-white hover:bg-rose-500 px-4 py-2 rounded-xl transition-all">Disband</button>
+                                <p className="text-sm font-medium text-gray-500 dark:text-zinc-500 line-clamp-2">{dept.description || 'No operational brief provided.'}</p>
+                                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-zinc-800/50 flex justify-end">
+                                    <button onClick={async () => { if (confirm('Disband unit?')) { await hrmsApi.deleteDepartment(dept._id); fetchData(); } }} className="text-[11px] font-bold uppercase tracking-wider text-rose-500 hover:text-white hover:bg-rose-500 px-4 py-2 rounded-xl transition-all">Disband</button>
                                 </div>
                             </div>
                         ))}
@@ -549,7 +549,7 @@ export default function HRMSPage() {
                             className="bg-transparent border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-[2rem] p-10 flex flex-col items-center justify-center text-gray-400 hover:text-blue-500 hover:border-blue-500 transition-all hover:bg-blue-50/10"
                         >
                             <span className="text-3xl mb-2">＋</span>
-                            <span className="text-xs font-semibold uppercase tracking-wider">Establish Unit</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider">Establish Unit</span>
                         </button>
                     </div>
                 )}
