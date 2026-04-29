@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 
 import {
   FaChartPie,
@@ -105,7 +106,18 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-xl font-bold tracking-tight text-white">LANSUB</h1>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/images/logo.png"
+            alt="LANSUB Logo"
+            width={32}
+            height={32}
+            className="object-contain"
+          />
+          <h1 className="text-xl font-bold tracking-tight text-white">
+            LANSUB
+          </h1>
+        </div>
         {onClose && (
           <button
             onClick={onClose}
@@ -126,11 +138,10 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
               key={item.href}
               href={item.href}
               onClick={() => onClose?.()}
-              className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 ${
-                isActive
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50 dark:shadow-none"
-                  : "text-slate-400 dark:text-zinc-400 hover:bg-white/10 dark:hover:bg-zinc-900 hover:text-white"
-              }`}
+              className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 ${isActive
+                ? "bg-blue-600 text-white shadow-lg shadow-blue-900/50 dark:shadow-none"
+                : "text-slate-400 dark:text-zinc-400 hover:bg-white/10 dark:hover:bg-zinc-900 hover:text-white"
+                }`}
             >
               <item.Icon size={15} />
               {item.label}

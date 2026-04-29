@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { authApi } from "../../lib/api";
+import Image from "next/image";
 
 // ── Shared input class — dark, consistent across all fields ───────────────────
 const inputCls =
@@ -153,9 +154,18 @@ export default function AuthPage() {
               exit={{ opacity: 0, x: -80 }}
               transition={{ duration: 0.35 }}
             >
-              <h1 className="text-3xl font-semibold text-white text-center">
-                LANSUB
-              </h1>
+              <div className="flex items-center justify-center gap-3">
+                <Image
+                  src="/images/logo.png"
+                  alt="LANSUB Logo"
+                  width={36}
+                  height={36}
+                  className="object-contain"
+                />
+                <h1 className="text-3xl font-semibold text-white">
+                  LANSUB
+                </h1>
+              </div>
               <p className="text-gray-400 text-center text-sm mt-1 mb-8">
                 Login to your account
               </p>
