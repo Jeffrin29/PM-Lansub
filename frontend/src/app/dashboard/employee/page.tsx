@@ -306,7 +306,7 @@ export default function EmployeePage() {
                                             <td className="px-5 py-4 text-xs text-gray-500 truncate max-w-[150px]">{l.reason}</td>
                                             <td className="px-5 py-4"><StatusBadge status={l.status} /></td>
                                             <td className="px-5 py-4 text-right">
-                                                <button 
+                                                <button
                                                     onClick={() => handleDeleteLeave(l._id)}
                                                     className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 rounded-lg transition-colors"
                                                     title="Cancel Request"

@@ -14,7 +14,7 @@ const validate = (req, res, next) => {
       message: err.msg,
       value: err.value,
     }));
-    return errorResponse(res, 'Validation failed. Please check your input.', 422, formatted);
+    return errorResponse(res, formatted[0].message || 'Validation failed. Please check your input.', 422, formatted);
   }
   next();
 };

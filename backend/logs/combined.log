@@ -897,3 +897,47 @@
 [2026-04-24 19:54:39] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
 [2026-04-24 20:00:49] [33mwarn[39m: [33m⚠️  MongoDB disconnected. Attempting to reconnect...[39m
 [2026-04-24 20:01:00] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
+[2026-04-28 10:11:00] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-28 10:11:01] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-28 10:11:01] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-28 10:11:01] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-28 11:04:56] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-28 11:04:56] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-28 11:04:57] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-28 11:04:57] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-28 19:53:11] [33mwarn[39m: [33m⚠️  MongoDB disconnected. Attempting to reconnect...[39m
+[2026-04-28 19:53:14] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
+[2026-04-28 21:16:08] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
+[2026-04-28 21:16:09] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
+[2026-04-28 21:16:19] [33mwarn[39m: [33m⚠️  MongoDB disconnected. Attempting to reconnect...[39m
+[2026-04-28 21:16:20] [32minfo[39m: [32m✅ MongoDB reconnected successfully.[39m
+[2026-04-29 08:05:32] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-29 08:05:32] [32minfo[39m: [32m🚀 Server running in development mode on port 5000[39m
+[2026-04-29 08:05:32] [32minfo[39m: [32m🔗 Health check: http://localhost:5000/api/health[39m
+[2026-04-29 08:05:32] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-29 08:22:35] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-29 08:22:35] [32minfo[39m: [32m🚀 Server running in development mode on port 9000[39m
+[2026-04-29 08:22:35] [32minfo[39m: [32m🔗 Health check: http://localhost:9000/api/health[39m
+[2026-04-29 08:22:35] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-29 09:07:26] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-29 09:07:26] [32minfo[39m: [32m🚀 Server running in development mode on port 9000[39m
+[2026-04-29 09:07:26] [32minfo[39m: [32m🔗 Health check: http://localhost:9000/api/health[39m
+[2026-04-29 09:07:26] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-29 10:53:55] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-29 10:53:55] [32minfo[39m: [32m🚀 Server running in development mode on port 9000[39m
+[2026-04-29 10:53:55] [32minfo[39m: [32m🔗 Health check: http://localhost:9000/api/health[39m
+[2026-04-29 10:53:55] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-29 11:02:29] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-29 11:02:29] [32minfo[39m: [32m🚀 Server running in development mode on port 9000[39m
+[2026-04-29 11:02:29] [32minfo[39m: [32m🔗 Health check: http://localhost:9000/api/health[39m
+[2026-04-29 11:02:29] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-29 11:02:35] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-29 11:02:35] [32minfo[39m: [32m🚀 Server running in development mode on port 9000[39m
+[2026-04-29 11:02:35] [32minfo[39m: [32m🔗 Health check: http://localhost:9000/api/health[39m
+[2026-04-29 11:02:35] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-29 11:02:42] [32minfo[39m: [32m✅ MongoDB Connected: ac-euqjpau-shard-00-00.nfljew1.mongodb.net[39m
+[2026-04-29 11:02:42] [32minfo[39m: [32m🚀 Server running in development mode on port 9000[39m
+[2026-04-29 11:02:42] [32minfo[39m: [32m🔗 Health check: http://localhost:9000/api/health[39m
+[2026-04-29 11:02:42] [32minfo[39m: [32m🔌 Socket.io ready[39m
+[2026-04-29 11:50:45] [32minfo[39m: [32m[39m
+[32m⚠️  SIGINT received. Shutting down gracefully...[39m

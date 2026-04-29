@@ -3,7 +3,7 @@
 
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:9000';
 
 let socket: Socket | null = null;
 
@@ -38,12 +38,12 @@ export function disconnectSocket(): void {
 
 // Typed event emitters
 export const socketEvents = {
-  TASK_CREATED:          'task:created',
-  TASK_UPDATED:          'task:updated',
-  TASK_MOVED:            'task:moved',
-  COMMENT_ADDED:         'comment:added',
-  NOTIFICATION_NEW:      'notification:new',
-  TIMESHEET_SUBMITTED:   'timesheet:submitted',
+  TASK_CREATED: 'task:created',
+  TASK_UPDATED: 'task:updated',
+  TASK_MOVED: 'task:moved',
+  COMMENT_ADDED: 'comment:added',
+  NOTIFICATION_NEW: 'notification:new',
+  TIMESHEET_SUBMITTED: 'timesheet:submitted',
 } as const;
 
 export default getSocket;

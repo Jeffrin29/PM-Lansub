@@ -60,7 +60,7 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Create default org_admin role for the first user
+    // Create default roles if they don't exist
     let adminRole = await Role.findOne({ name: 'org_admin', organizationId: org._id });
     if (!adminRole) {
       adminRole = await Role.create({
@@ -68,20 +68,35 @@ exports.register = async (req, res, next) => {
         displayName: 'Organization Admin',
         description: 'Full access to organization resources',
         organizationId: org._id,
-        permissions: [],
         isSystemRole: true,
         level: 90,
       });
     }
 
+    let employeeRole = await Role.findOne({ name: 'employee', organizationId: org._id });
+    if (!employeeRole) {
+      employeeRole = await Role.create({
+        name: 'employee',
+        displayName: 'Employee',
+        description: 'Standard employee access',
+        organizationId: org._id,
+        isSystemRole: true,
+        level: 10,
+      });
+    }
+
     // Create user (password hashed via pre-save hook)
+    // Default role for signup is now 'employee'
+    const userRole = req.body.role || 'employee';
+    const targetRoleId = userRole === 'admin' ? adminRole._id : employeeRole._id;
+
     const user = await User.create({
       name,
       email,
       passwordHash: password,
       organizationId: org._id,
-      roleId: adminRole._id,
-      role: 'admin',
+      roleId: targetRoleId,
+      role: userRole,
       status: 'active',
       emailVerified: false,
     });
@@ -142,6 +157,8 @@ exports.register = async (req, res, next) => {
     });
 
     return res.status(201).json({
+      success: true,
+      message: "Account created successfully",
       token,
       user: {
         id: populatedUser._id,
@@ -150,6 +167,7 @@ exports.register = async (req, res, next) => {
       }
     });
   } catch (err) {
+    console.error("[REGISTER ERROR]:", err);
     next(err);
   }
 };
