@@ -132,9 +132,15 @@ function TimeEntryModal({
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select project…</option>
-              {projects.map((p) => (
-                <option key={p._id} value={p._id}>{p.name || p.projectTitle || "Untitled"}</option>
-              ))}
+              {projects.length > 0 ? (
+                projects.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.name || p.projectTitle || "Untitled"}
+                  </option>
+                ))
+              ) : (
+                <option disabled>No projects available</option>
+              )}
             </select>
           </div>
           <div>
@@ -234,11 +240,29 @@ export default function TimesheetsPage() {
         tasksApi.getAll(),
         authApi.me(),
       ]);
-      if (tsRes.status   === "fulfilled") setTimesheets(tsRes.value?.data?.data   || tsRes.value?.data   || []);
-      if (projRes.status === "fulfilled") setProjects(projRes.value?.data?.data   || projRes.value?.data || []);
-      if (taskRes.status === "fulfilled") setTasks(taskRes.value?.data?.data      || taskRes.value?.data || []);
-      if (userRes.status === "fulfilled") setCurrentUser((userRes.value as any).data);
+
+      if (tsRes.status === "fulfilled") {
+        setTimesheets(tsRes.value?.data?.data || tsRes.value?.data || []);
+      }
+
+      if (projRes.status === "fulfilled") {
+        const projData = projRes.value?.data?.data || projRes.value?.data || projRes.value || [];
+        console.log("Projects API Raw Response:", projRes.value);
+        console.log("Processed Projects:", projData);
+        setProjects(Array.isArray(projData) ? projData : []);
+      }
+
+      if (taskRes.status === "fulfilled") {
+        const taskData = taskRes.value?.data?.data || taskRes.value?.data || taskRes.value || [];
+        console.log("Tasks API Response:", taskData);
+        setTasks(Array.isArray(taskData) ? taskData : []);
+      }
+
+      if (userRes.status === "fulfilled") {
+        setCurrentUser((userRes.value as any).data || (userRes.value as any));
+      }
     } catch (err: any) {
+      console.error("fetchData Error:", err);
       setError(err.message || "Failed to load timesheets");
     } finally {
       setLoading(false);
@@ -400,6 +424,8 @@ export default function TimesheetsPage() {
                     key={ts._id}
                     className="border-t border-gray-50 dark:border-zinc-800 hover:bg-gray-50 dark:hover:bg-zinc-800/40 transition"
                   >
+                    {/* Debug log for project data */}
+                    {process.env.NODE_ENV === 'development' && console.log(`Timesheet row ${ts._id} project:`, ts.project)}
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-400 whitespace-nowrap">
                       {new Date(ts.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </td>
@@ -407,7 +433,10 @@ export default function TimesheetsPage() {
                       {ts.task?.title || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-5 py-4 text-gray-600 dark:text-gray-300">
-                      {ts.project?.name || ts.project?.projectTitle || "—"}
+                      {(typeof ts.project === 'object' && (ts.project?.name || ts.project?.projectTitle)) || 
+                       projects.find(p => p._id === (typeof ts.project === 'string' ? ts.project : ts.project?._id))?.name || 
+                       projects.find(p => p._id === (typeof ts.project === 'string' ? ts.project : ts.project?._id))?.projectTitle ||
+                       "—"}
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">

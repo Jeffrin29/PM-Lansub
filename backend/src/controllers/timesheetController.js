@@ -33,7 +33,7 @@ const getTimesheets = async (req, res) => {
         .limit(limit)
         .populate('user', 'name email')
         .populate('task', 'title')
-        .populate('project', 'name')
+        .populate('project', 'name projectTitle')
         .lean(),
       Timesheet.countDocuments(filter),
     ]);
@@ -65,7 +65,7 @@ const createTimesheet = async (req, res) => {
     const populated = await timesheet.populate([
       { path: 'user', select: 'name email' },
       { path: 'task', select: 'title' },
-      { path: 'project', select: 'name' },
+      { path: 'project', select: 'name projectTitle' },
     ]);
 
     return successResponse(res, populated, 'Timesheet created', 201);
