@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const Project = require('../models/Project');
+const User = require('../models/User');
 const { logActivity } = require('../services/activityService');
 const { sendNotification } = require('../services/notificationService');
 const { successResponse, errorResponse, getPagination, paginatedResponse, getClientIp } = require('../utils/helpers');
@@ -24,9 +26,9 @@ exports.getProjects = async (req, res) => {
       .sort({ createdAt: -1 });
 
     console.log(`[PROJECTS] Found ${projects.length} for User: ${userId}`);
-    res.json(projects);
+    return successResponse(res, projects, 'Projects fetched.');
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return errorResponse(res, err.message);
   }
 };
 
@@ -51,7 +53,16 @@ exports.createProject = async (req, res, next) => {
     const {
       name, projectTitle, description, status, priority, budget,
       startDate, endDate, riskLevel, teamMembers, tags, milestones, completion,
+      owner
     } = req.body;
+
+    let ownerId = owner;
+    if (ownerId && !mongoose.Types.ObjectId.isValid(ownerId)) {
+      const userByName = await User.findOne({ name: ownerId });
+      ownerId = userByName?._id || req.user.userId;
+    } else if (!ownerId) {
+      ownerId = req.user.userId;
+    }
 
     const finalName = name || projectTitle;
 
@@ -59,7 +70,7 @@ exports.createProject = async (req, res, next) => {
       name: finalName,
       description,
       organizationId: req.user.organizationId,
-      owner: req.user.userId,
+      owner: ownerId,
       status: status || 'draft',
       priority: priority || 'medium',
       budget,
@@ -134,6 +145,18 @@ exports.updateProject = async (req, res, next) => {
       'teamMembers', 'tags', 'milestones', 'owner',
     ];
     const before = project.toObject();
+
+    // ── Owner ObjectId handling ───────────────────────────────────────────
+    if (req.body.owner) {
+      if (!mongoose.Types.ObjectId.isValid(req.body.owner)) {
+        const userByName = await User.findOne({ name: req.body.owner });
+        if (userByName) {
+          req.body.owner = userByName._id;
+        } else {
+          return errorResponse(res, `Invalid owner ID: ${req.body.owner}`, 400);
+        }
+      }
+    }
 
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {

@@ -11,7 +11,7 @@ import {
   FiCheckCircle,
 } from "react-icons/fi";
 
-import { projectsApi } from "../../../lib/api";
+import { projectsApi, usersDropdownApi } from "../../../lib/api";
 
 const STATUS_OPTIONS  = ["Draft","Active","Review","Completed","Archived"];
 const PRIORITY_OPTIONS = ["Low","Medium","High","Critical"];
@@ -76,7 +76,7 @@ export default function CreateProjectModal({ onClose, onCreated, project }: Prop
   const [form, setForm] = useState<FormState>({
     name: project?.name ?? project?.projectTitle ?? "",
     description: project?.description ?? "",
-    owner: project?.owner?.name ?? project?.owner ?? "",
+    owner: project?.owner?._id ?? project?.owner ?? "",
     teamInput: project?.teamMembers?.map((m: any) => m.userId?.name || m.userId).join(", ") ?? "",
     status: project?.status ? project.status.charAt(0).toUpperCase() + project.status.slice(1) : "Draft",
     priority: project?.priority ? project.priority.charAt(0).toUpperCase() + project.priority.slice(1) : "Medium",
@@ -89,7 +89,22 @@ export default function CreateProjectModal({ onClose, onCreated, project }: Prop
   const [files, setFiles]       = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [users, setUsers]       = useState<any[]>([]);
   const [success, setSuccess]   = useState(false);
+
+  // Fetch users for the owner dropdown
+  React.useEffect(() => {
+    async function fetchUsers() {
+      try {
+        const res = await usersDropdownApi.getAll();
+        const list = res?.data?.data ?? res?.data ?? res ?? [];
+        setUsers(list);
+      } catch (err) {
+        console.error("Failed to fetch users", err);
+      }
+    }
+    fetchUsers();
+  }, []);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   function handleChange(
@@ -285,14 +300,19 @@ export default function CreateProjectModal({ onClose, onCreated, project }: Prop
             {/* Row 3 — Owner | Assigned Team */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Owner">
-                <input
+                <select
                   name="owner"
-                  type="text"
-                  placeholder="e.g. John Smith"
                   value={form.owner}
                   onChange={handleChange}
-                  className={inputCls}
-                />
+                  className={selectCls}
+                >
+                  <option value="">Select Owner</option>
+                  {users.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Assigned Team (comma-separated)">
                 <input

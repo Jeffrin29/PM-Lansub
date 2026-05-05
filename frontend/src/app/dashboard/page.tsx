@@ -81,33 +81,38 @@ function Badge({
   );
 }
 
-// ── KPI Card ──────────────────────────────────────────────────────────────────
+const cardColors: Record<string, string> = {
+  total: "bg-gradient-to-r from-blue-500 to-blue-700",
+  active: "bg-gradient-to-r from-emerald-500 to-teal-600",
+  completed: "bg-gradient-to-r from-violet-500 to-purple-600",
+  overdue: "bg-gradient-to-r from-rose-500 to-red-600",
+  utilization: "bg-gradient-to-r from-orange-500 to-amber-600",
+};
+
 function KPICard({
   label,
   value,
   icon: Icon,
-  color,
-  iconBg,
+  type,
 }: {
   label: string;
   value: string | number;
   icon: any;
-  color: string;
-  iconBg: string;
+  type: keyof typeof cardColors;
 }) {
   return (
-    <div className="kpi-card bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md hover:border-blue-400/40 dark:hover:border-blue-500/20 transition-all duration-300 group">
+    <div className={`kpi-card rounded-2xl p-5 sm:p-6 shadow-sm hover:shadow-md transition-all duration-300 group text-white ${cardColors[type]}`}>
       <div className="flex items-start justify-between">
         <div className="space-y-3">
-          <p className="text-[11px] font-semibold text-gray-500 dark:text-zinc-500 uppercase tracking-widest">
+          <p className="text-[11px] font-semibold text-white/80 uppercase tracking-widest">
             {label}
           </p>
-          <div className="text-3xl font-bold text-gray-900 dark:text-white">
+          <div className="text-3xl font-bold text-white">
             {value}
           </div>
         </div>
         <div
-          className={`p-3.5 rounded-xl ${iconBg} dark:bg-zinc-800/50 ${color} flex-shrink-0`}
+          className={`p-3.5 rounded-xl bg-white/20 text-white flex-shrink-0`}
         >
           <Icon className="text-xl" />
         </div>
@@ -237,36 +242,31 @@ export default function Dashboard() {
           label="Total Projects"
           value={loading ? "..." : summary.totalProjects}
           icon={FaFolderOpen}
-          color="text-cyan-600 dark:text-cyan-500"
-          iconBg="bg-cyan-50"
+          type="total"
         />
         <KPICard
           label="Active Projects"
           value={loading ? "..." : summary.activeProjects}
           icon={FaRocket}
-          color="text-emerald-600 dark:text-emerald-500"
-          iconBg="bg-emerald-50"
+          type="active"
         />
         <KPICard
           label="Tasks Completed"
           value={loading ? "..." : summary.completedTasks}
           icon={FaCircleCheck}
-          color="text-blue-600 dark:text-blue-500"
-          iconBg="bg-blue-50"
+          type="completed"
         />
         <KPICard
           label="Overdue Items"
           value={loading ? "..." : summary.overdueTasks}
           icon={FaTriangleExclamation}
-          color="text-rose-600 dark:text-rose-500"
-          iconBg="bg-rose-50"
+          type="overdue"
         />
         <KPICard
           label="Utilization"
           value={loading ? "..." : `${summary.teamUtilization}%`}
           icon={FaUsers}
-          color="text-amber-600 dark:text-amber-500"
-          iconBg="bg-amber-50"
+          type="utilization"
         />
       </div>
 

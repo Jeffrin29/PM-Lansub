@@ -150,11 +150,6 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
         })}
       </nav>
 
-      {/* Role badge */}
-      <div className="mb-4 px-4 py-1.5 text-xs font-semibold rounded-full self-start capitalize bg-white/10 dark:bg-blue-900/30 text-slate-300 dark:text-blue-400 border border-white/20 dark:border-blue-800">
-        {role}
-      </div>
-
       {/* Logout */}
       <button
         onClick={handleLogout}
