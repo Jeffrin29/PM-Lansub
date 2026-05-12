@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["http://98.70.44.251"],
+
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.watchOptions = {
